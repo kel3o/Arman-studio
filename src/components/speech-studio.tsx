@@ -1,15 +1,21 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import Link from "next/link"
 import {
+  BookOpen,
+  CheckCircle2,
   Download,
   KeyRound,
   Pause,
   Play,
   RotateCcw,
+  Undo2,
+  Redo2,
   Volume2,
 } from "lucide-react"
 
+import { ChatSidebar } from "@/components/chat-sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,11 +44,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import {
   DEFAULT_VOICE,
   MAX_TEXT_CHARS,
-  SAMPLE_TEXTS,
   STYLES,
   VOICE_GROUPS,
   VOICES,
@@ -54,7 +60,24 @@ import {
   persistApiKey,
   subscribeApiKey,
 } from "@/lib/api-key-store"
-import { formatPercent } from "@/lib/generation-progress"
+import {
+  createChat,
+  deleteChat,
+  getActiveChatIdServerSnapshot,
+  getActiveChatIdSnapshot,
+  getChatsServerSnapshot,
+  getChatsSnapshot,
+  loadChatAudio,
+  saveChatAudio,
+  selectChat,
+  subscribeChats,
+  updateChat,
+} from "@/lib/chat-store"
+import {
+  formatPercent,
+  formatTime,
+  loadingDurationMs,
+} from "@/lib/generation-progress"
 import { useGenerationProgress } from "@/hooks/use-generation-progress"
 import { cn } from "@/lib/utils"
 
@@ -67,8 +90,22 @@ function maskKey(key: string): string {
   return `${key.slice(0, 4)}…${key.slice(-4)}`
 }
 
+function isStyleId(value: string): value is StyleId {
+  return STYLES.some((item) => item.id === value)
+}
+
 export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
-  const [text, setText] = useState<string>(SAMPLE_TEXTS[0].text)
+  const chats = useSyncExternalStore(
+    subscribeChats,
+    getChatsSnapshot,
+    getChatsServerSnapshot,
+  )
+  const activeId = useSyncExternalStore(
+    subscribeChats,
+    getActiveChatIdSnapshot,
+    getActiveChatIdServerSnapshot,
+  )
+  const [text, setText] = useState("")
   const [voice, setVoice] = useState<string>(DEFAULT_VOICE)
   const [style, setStyle] = useState<StyleId>("natural")
   const apiKey = useSyncExternalStore(
@@ -78,6 +115,8 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   )
   const [draftKey, setDraftKey] = useState("")
   const [keyDialogOpen, setKeyDialogOpen] = useState(false)
+  const [keyError, setKeyError] = useState("")
+  const [keySuccess, setKeySuccess] = useState(false)
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   )
@@ -85,18 +124,15 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   const [timeoutOpen, setTimeoutOpen] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [playbackProgress, setPlaybackProgress] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const pendingUrlRef = useRef<string | null>(null)
+  const pendingBlobRef = useRef<Blob | null>(null)
+  const activeIdRef = useRef(activeId)
+  const [loadedChatId, setLoadedChatId] = useState("")
   const generation = useGenerationProgress()
-
-  useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-    }
-  }, [audioUrl])
 
   const remaining = MAX_TEXT_CHARS - text.length
   const isLoading =
@@ -105,17 +141,70 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     generation.phase === "finishing"
   const canSpeak = text.trim().length > 0 && !isLoading
   const needsKey = !hasServerKey && !apiKey
+  const canSeek = Boolean(audioUrl) && !isLoading && duration > 0
 
-  const selectedVoice = useMemo(
-    () => VOICES.find((item) => item.name === voice) ?? VOICES[0],
-    [voice],
-  )
+  const activeChat = chats.find((item) => item.id === activeId)
+  if (activeChat && activeId !== loadedChatId) {
+    setLoadedChatId(activeId)
+    setText(activeChat.text)
+    setVoice(activeChat.voice)
+    setStyle(isStyleId(activeChat.style) ? activeChat.style : "natural")
+    setError("")
+    setTimeoutOpen(false)
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(activeChat.duration || 0)
+    setStatus(activeChat.hasAudio ? "ready" : "idle")
+    setAudioUrl(null)
+  }
+
+  function replaceAudioUrl(next: string | null) {
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return next
+    })
+  }
+
+  useEffect(() => {
+    activeIdRef.current = activeId
+  }, [activeId])
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
+    }
+  }, [audioUrl])
+
+  useEffect(() => {
+    if (!activeId) return
+    const chat = chats.find((item) => item.id === activeId)
+    if (!chat?.hasAudio) return
+    let cancelled = false
+    void loadChatAudio(chat.id).then((blob) => {
+      if (cancelled || !blob || activeIdRef.current !== chat.id) return
+      const url = URL.createObjectURL(blob)
+      replaceAudioUrl(url)
+      setStatus("ready")
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeId, chats])
+
+  useEffect(() => {
+    if (!activeId || loadedChatId !== activeId) return
+    const handle = window.setTimeout(() => {
+      void updateChat(activeId, { text, voice, style })
+    }, 400)
+    return () => window.clearTimeout(handle)
+  }, [activeId, loadedChatId, text, voice, style])
 
   function clearPendingAudio() {
     if (pendingUrlRef.current) {
       URL.revokeObjectURL(pendingUrlRef.current)
       pendingUrlRef.current = null
     }
+    pendingBlobRef.current = null
   }
 
   function restartSession() {
@@ -123,23 +212,17 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     abortRef.current = null
     generation.reset()
     clearPendingAudio()
-    setAudioUrl((previous) => {
-      if (previous) URL.revokeObjectURL(previous)
-      return null
-    })
+    replaceAudioUrl(null)
     setStatus("idle")
     setError("")
     setTimeoutOpen(false)
     setIsPlaying(false)
-    setPlaybackProgress(0)
+    setCurrentTime(0)
     setDuration(0)
   }
 
   function revealAudio(url: string) {
-    setAudioUrl((previous) => {
-      if (previous) URL.revokeObjectURL(previous)
-      return url
-    })
+    replaceAudioUrl(url)
     setStatus("ready")
     requestAnimationFrame(() => {
       const player = audioRef.current
@@ -150,6 +233,29 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
         () => setIsPlaying(false),
       )
     })
+  }
+
+  async function handleNewChat() {
+    restartSession()
+    const chat = await createChat()
+    setLoadedChatId(chat.id)
+    setText("")
+    setVoice(DEFAULT_VOICE)
+    setStyle("natural")
+  }
+
+  function handleSelectChat(id: string) {
+    if (id === activeId || isLoading) return
+    abortRef.current?.abort()
+    generation.reset()
+    clearPendingAudio()
+    selectChat(id)
+  }
+
+  function handleDeleteChat(id: string) {
+    if (isLoading) return
+    if (id === activeId) restartSession()
+    void deleteChat(id)
   }
 
   async function generateSpeech() {
@@ -170,22 +276,29 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     const controller = new AbortController()
     abortRef.current = controller
     clearPendingAudio()
-    setAudioUrl((previous) => {
-      if (previous) URL.revokeObjectURL(previous)
-      return null
-    })
+    replaceAudioUrl(null)
     setStatus("loading")
     setError("")
     setTimeoutOpen(false)
     setIsPlaying(false)
-    setPlaybackProgress(0)
+    setCurrentTime(0)
     setDuration(0)
+    if (activeId) {
+      void updateChat(activeId, { text: trimmed, voice, style })
+    }
 
     generation.start({
+      durationMs: loadingDurationMs(trimmed.length),
       onFinished: () => {
         const url = pendingUrlRef.current
+        const blob = pendingBlobRef.current
         pendingUrlRef.current = null
+        pendingBlobRef.current = null
         if (url) revealAudio(url)
+        const chatId = activeIdRef.current
+        if (blob && chatId) {
+          void saveChatAudio(chatId, blob)
+        }
       },
       onTimeout: () => {
         controller.abort()
@@ -215,15 +328,12 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
       }
 
       const blob = await response.blob()
-      if (controller.signal.aborted) {
-        return
-      }
+      if (controller.signal.aborted) return
+      pendingBlobRef.current = blob
       pendingUrlRef.current = URL.createObjectURL(blob)
       generation.complete()
     } catch (caught) {
-      if (controller.signal.aborted) {
-        return
-      }
+      if (controller.signal.aborted) return
       generation.reset()
       clearPendingAudio()
       setStatus("error")
@@ -245,8 +355,20 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     }
   }
 
+  function seekTo(seconds: number) {
+    const player = audioRef.current
+    if (!player || !canSeek) return
+    const next = Math.min(duration, Math.max(0, seconds))
+    player.currentTime = next
+    setCurrentTime(next)
+  }
+
+  function skip(delta: number) {
+    seekTo(currentTime + delta)
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 lg:py-12">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:py-12">
       <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl space-y-3">
           <Badge variant="outline" className="border-primary/20 bg-accent/70">
@@ -262,31 +384,53 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             <code className="rounded-md bg-muted px-1.5 py-0.5 text-sm">
               [whispers]
             </code>{" "}
-            استفاده کنید.
+            استفاده کنید. فهرست کامل در{" "}
+            <Link href="/guide" className="text-foreground underline underline-offset-4">
+              صفحه راهنما
+            </Link>{" "}
+            است.
           </p>
         </div>
 
-        <Button
-          variant={needsKey ? "default" : "outline"}
-          size="lg"
-          onClick={() => {
-            setDraftKey(apiKey)
-            setKeyDialogOpen(true)
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="lg"
+            nativeButton={false}
+            render={<Link href="/guide" />}
+          >
+            <BookOpen data-icon="inline-start" />
+            صفحه راهنما
+          </Button>
+          <Button
+            variant={needsKey ? "default" : "outline"}
+            size="lg"
+            onClick={() => {
+              setDraftKey(apiKey)
+              setKeyError("")
+              setKeySuccess(false)
+              setKeyDialogOpen(true)
+            }}
+          >
+            <KeyRound data-icon="inline-start" />
+            {apiKey ? maskKey(apiKey) : "کلید API"}
+          </Button>
+        </div>
+        <Dialog
+          open={keyDialogOpen}
+          onOpenChange={(open) => {
+            setKeyDialogOpen(open)
+            if (!open) {
+              setKeyError("")
+              setKeySuccess(false)
+            }
           }}
         >
-          <KeyRound data-icon="inline-start" />
-          {hasServerKey && !apiKey
-            ? "کلید سرور آماده است"
-            : apiKey
-              ? maskKey(apiKey)
-              : "کلید API"}
-        </Button>
-        <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
           <DialogContent className="sm:max-w-md" dir="rtl">
             <DialogHeader>
               <DialogTitle>کلید Gemini</DialogTitle>
               <DialogDescription>
-                از{" "}
+                هر کاربر کلید خودش را از{" "}
                 <a
                   href="https://aistudio.google.com/apikey"
                   target="_blank"
@@ -295,7 +439,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 >
                   Google AI Studio
                 </a>{" "}
-                یک کلید بگیرید. کلید فقط در مرورگر شما ذخیره می‌شود.
+                می‌گیرد و اینجا ذخیره می‌کند. کلید فقط در مرورگر شما می‌ماند.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
@@ -307,24 +451,49 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 autoComplete="off"
                 placeholder="AIza..."
                 value={draftKey}
-                onChange={(event) => setDraftKey(event.target.value)}
+                onChange={(event) => {
+                  setDraftKey(event.target.value)
+                  setKeyError("")
+                  setKeySuccess(false)
+                }}
               />
             </div>
+            {keyError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {keyError}
+              </p>
+            ) : null}
+            {keySuccess ? (
+              <p
+                role="status"
+                className="flex items-center gap-2 rounded-lg border border-primary/20 bg-accent px-3 py-2 text-sm text-foreground"
+              >
+                <CheckCircle2 className="size-4 shrink-0" />
+                API با موفقیت ثبت شد
+              </p>
+            ) : null}
             <DialogFooter className="sm:justify-between">
               <Button
                 variant="ghost"
                 onClick={() => {
                   persistApiKey("")
                   setDraftKey("")
-                  setKeyDialogOpen(false)
+                  setKeySuccess(false)
+                  setKeyError("")
                 }}
               >
                 پاک کردن
               </Button>
               <Button
                 onClick={() => {
+                  if (!draftKey.trim()) {
+                    setKeySuccess(false)
+                    setKeyError("کلید API را وارد کنید.")
+                    return
+                  }
                   persistApiKey(draftKey)
-                  setKeyDialogOpen(false)
+                  setKeyError("")
+                  setKeySuccess(true)
                 }}
               >
                 ذخیره
@@ -334,244 +503,252 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
         </Dialog>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
-        <Card className="bg-card/90 shadow-sm">
-          <CardHeader className="border-b">
-            <CardTitle>متن برای خواندن</CardTitle>
-            <CardDescription>
-              مدل باید دقیقاً همین متن را بلند بخواند، نه ترجمه کند.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 pt-4">
-            <div className="flex flex-wrap gap-2">
-              {SAMPLE_TEXTS.map((sample) => (
-                <Button
-                  key={sample.label}
-                  type="button"
-                  size="sm"
-                  variant={text === sample.text ? "default" : "outline"}
-                  disabled={isLoading}
-                  onClick={() => setText(sample.text)}
-                >
-                  {sample.label}
-                </Button>
-              ))}
-            </div>
-            <Textarea
-              value={text}
-              onChange={(event) => setText(event.target.value.slice(0, MAX_TEXT_CHARS))}
-              dir="rtl"
-              rows={10}
-              disabled={isLoading}
-              placeholder="متن فارسی را اینجا بنویسید..."
-              className="min-h-52 text-base leading-8 md:text-lg"
-            />
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>برچسب‌ها را انگلیسی بگذارید: [excited] [very slow]</span>
-              <span>{remaining.toLocaleString("fa-IR")} نویسه مانده</span>
-            </div>
-            {status === "error" && !timeoutOpen ? (
-              <p
-                role="alert"
-                className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                {error}
-              </p>
-            ) : null}
-            {isLoading ? (
-              <div className="space-y-3 rounded-xl border bg-muted/40 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground">
-                    در حال تولید فایل صوتی
-                  </span>
-                  <span className="tabular-nums text-muted-foreground">
-                    {formatPercent(generation.percent)}
-                  </span>
-                </div>
-                <div
-                  className="h-3 overflow-hidden rounded-full bg-background"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.floor(generation.percent)}
-                >
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{
-                      width: `${Math.min(100, generation.percent)}%`,
-                    }}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={restartSession}
-                >
-                  <RotateCcw data-icon="inline-start" />
-                  ری استارت
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Button
-                  size="lg"
-                  className="h-11 w-full text-base"
-                  onClick={() => void generateSpeech()}
-                  disabled={!canSpeak}
-                >
-                  <Volume2 data-icon="inline-start" />
-                  تولید فایل صوتی
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={restartSession}
-                >
-                  <RotateCcw data-icon="inline-start" />
-                  ری استارت
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <ChatSidebar
+          chats={chats}
+          activeId={activeId}
+          disabled={isLoading}
+          onNewChat={() => void handleNewChat()}
+          onSelect={handleSelectChat}
+          onDelete={handleDeleteChat}
+        />
 
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>صدا و لحن</CardTitle>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
+          <Card className="bg-card/90 shadow-sm">
+            <CardHeader className="border-b">
+              <CardTitle>متن برای خواندن</CardTitle>
               <CardDescription>
-                {selectedVoice.name} · {selectedVoice.mood}
+                مدل باید دقیقاً همین متن را بلند بخواند، نه ترجمه کند.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="voice">صدا</Label>
-                <Select
-                  value={voice}
-                  onValueChange={(value) => {
-                    if (value) setVoice(value)
-                  }}
-                  items={VOICES.map((item) => ({
-                    value: item.name,
-                    label: `${item.name} — ${item.mood}`,
-                  }))}
-                  modal={false}
-                >
-                  <SelectTrigger id="voice" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
-                    {VOICE_GROUPS.map((group) => (
-                      <SelectGroup key={group}>
-                        <SelectLabel>{group}</SelectLabel>
-                        {VOICES.filter((item) => item.group === group).map(
-                          (item) => (
-                            <SelectItem key={item.name} value={item.name}>
-                              {item.name}
-                              <span className="text-muted-foreground">
-                                {item.mood}
-                              </span>
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label>سبک خواندن</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {STYLES.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setStyle(item.id)}
-                      className={cn(
-                        "rounded-xl border px-3 py-2 text-start transition-colors",
-                        style === item.id
-                          ? "border-primary bg-accent text-foreground"
-                          : "border-border bg-background hover:bg-muted",
-                      )}
-                    >
-                      <div className="text-sm font-medium">{item.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.hint}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>پخش</CardTitle>
-              <CardDescription>
-                {isLoading
-                  ? `تولید فایل صوتی · ${formatPercent(generation.percent)}`
-                  : audioUrl
-                    ? "آمادهٔ پخش و دانلود."
-                    : "هنوز صدایی ساخته نشده."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <audio
-                ref={audioRef}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => {
-                  setIsPlaying(false)
-                  setPlaybackProgress(0)
-                }}
-                onLoadedMetadata={(event) => {
-                  setDuration(event.currentTarget.duration || 0)
-                }}
-                onTimeUpdate={(event) => {
-                  const current = event.currentTarget.currentTime
-                  const total = event.currentTarget.duration || 0
-                  setPlaybackProgress(total ? current / total : 0)
-                }}
+            <CardContent className="flex flex-col gap-4 pt-4">
+              <Textarea
+                value={text}
+                onChange={(event) =>
+                  setText(event.target.value.slice(0, MAX_TEXT_CHARS))
+                }
+                dir="rtl"
+                rows={10}
+                disabled={isLoading}
+                placeholder="متن فارسی را اینجا بنویسید..."
+                className="min-h-52 text-base leading-8 md:text-lg"
               />
-              <div className="flex items-center gap-3">
-                <Button
-                  size="icon-lg"
-                  variant="outline"
-                  onClick={togglePlayback}
-                  disabled={!audioUrl || isLoading}
-                  aria-label={isPlaying ? "توقف" : "پخش"}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>برچسب‌ها را انگلیسی بگذارید: [excited] [very slow]</span>
+                <span>{remaining.toLocaleString("fa-IR")} نویسه مانده</span>
+              </div>
+              {status === "error" && !timeoutOpen ? (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
                 >
-                  {isPlaying ? <Pause /> : <Play />}
-                </Button>
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  {error}
+                </p>
+              ) : null}
+              {isLoading ? (
+                <div className="space-y-3 rounded-xl border bg-muted/40 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">
+                      در حال تولید فایل صوتی
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatPercent(generation.percent)}
+                    </span>
+                  </div>
+                  <div
+                    className="h-3 overflow-hidden rounded-full bg-background"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.floor(generation.percent)}
+                  >
                     <div
                       className="h-full rounded-full bg-primary"
                       style={{
-                        width: `${Math.round(
-                          (isLoading ? generation.percent : playbackProgress * 100),
-                        )}%`,
+                        width: `${Math.min(100, generation.percent)}%`,
                       }}
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>
-                      {isLoading
-                        ? "در حال ساخت فایل"
-                        : audioUrl
-                          ? "WAV · ۲۴ کیلوهرتز"
-                          : "منتظر تولید"}
-                    </span>
-                    <span>
-                      {isLoading
-                        ? formatPercent(generation.percent)
-                        : formatTime(duration * playbackProgress)}
-                    </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={restartSession}
+                  >
+                    <RotateCcw data-icon="inline-start" />
+                    ری استارت
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Button
+                    size="lg"
+                    className="h-11 w-full text-base"
+                    onClick={() => void generateSpeech()}
+                    disabled={!canSpeak}
+                  >
+                    <Volume2 data-icon="inline-start" />
+                    تولید فایل صوتی
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={restartSession}
+                  >
+                    <RotateCcw data-icon="inline-start" />
+                    ری استارت
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-col gap-6">
+            <Card>
+              <CardContent className="flex flex-col gap-5">
+                <div className="grid gap-2">
+                  <Label htmlFor="voice" className="text-base">
+                    صدا
+                  </Label>
+                  <Select
+                    value={voice}
+                    onValueChange={(value) => {
+                      if (value) setVoice(value)
+                    }}
+                    items={VOICES.map((item) => ({
+                      value: item.name,
+                      label: `${item.name} — ${item.mood}`,
+                    }))}
+                    modal={false}
+                  >
+                    <SelectTrigger id="voice" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" alignItemWithTrigger={false}>
+                      {VOICE_GROUPS.map((group) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel>{group}</SelectLabel>
+                          {VOICES.filter((item) => item.group === group).map(
+                            (item) => (
+                              <SelectItem key={item.name} value={item.name}>
+                                {item.name}
+                                <span className="text-muted-foreground">
+                                  {item.mood}
+                                </span>
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label className="text-base">سبک خواندن</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {STYLES.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setStyle(item.id)}
+                        className={cn(
+                          "rounded-xl border px-3 py-2 text-start transition-colors",
+                          style === item.id
+                            ? "border-primary bg-accent text-foreground"
+                            : "border-border bg-background hover:bg-muted",
+                        )}
+                      >
+                        <div className="text-sm font-medium">{item.label}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.hint}
+                        </div>
+                      </button>
+                    ))}
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>پخش</CardTitle>
+                <CardDescription>
+                  {isLoading
+                    ? `تولید فایل صوتی · ${formatPercent(generation.percent)}`
+                    : audioUrl
+                      ? "آمادهٔ پخش و دانلود."
+                      : "هنوز صدایی ساخته نشده."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <audio
+                  ref={audioRef}
+                  src={audioUrl ?? undefined}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => {
+                    setIsPlaying(false)
+                    setCurrentTime(0)
+                  }}
+                  onLoadedMetadata={(event) => {
+                    const nextDuration = event.currentTarget.duration || 0
+                    setDuration(nextDuration)
+                    const chatId = activeIdRef.current
+                    if (chatId && nextDuration) {
+                      void updateChat(chatId, { duration: nextDuration })
+                    }
+                  }}
+                  onTimeUpdate={(event) => {
+                    setCurrentTime(event.currentTarget.currentTime || 0)
+                  }}
+                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="icon-lg"
+                    variant="outline"
+                    onClick={togglePlayback}
+                    disabled={!audioUrl || isLoading}
+                    aria-label={isPlaying ? "توقف" : "پخش"}
+                  >
+                    {isPlaying ? <Pause /> : <Play />}
+                  </Button>
+                  <div className="flex min-w-0 flex-1 flex-col gap-2" dir="ltr">
+                    <Slider
+                      min={0}
+                      max={Math.max(duration, 0.1)}
+                      step={0.1}
+                      disabled={!canSeek}
+                      value={[currentTime]}
+                      onValueChange={(value) => {
+                        const next = Array.isArray(value) ? value[0] : value
+                        seekTo(Number(next) || 0)
+                      }}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{formatTime(currentTime)}</span>
+                      <span>{formatTime(duration)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={!canSeek}
+                    onClick={() => skip(-10)}
+                  >
+                    <Undo2 data-icon="inline-start" />
+                    ۱۰ ثانیه عقب
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={!canSeek}
+                    onClick={() => skip(10)}
+                  >
+                    <Redo2 data-icon="inline-start" />
+                    ۱۰ ثانیه جلو
+                  </Button>
                 </div>
                 <Button
                   variant="outline"
@@ -587,31 +764,11 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   <Download data-icon="inline-start" />
                   دانلود
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-
-      <section className="grid gap-4 rounded-2xl border bg-card/70 p-5 text-sm leading-7 text-muted-foreground sm:grid-cols-3">
-        <div>
-          <h2 className="mb-1 font-medium text-foreground">۱. مدل TTS</h2>
-          از مدل‌های گفتار Gemini مثل{" "}
-          <span className="text-foreground">gemini-3.1-flash-tts-preview</span>{" "}
-          استفاده کنید. مدل‌های معمولی Gemini صدا نمی‌سازند.
-        </div>
-        <div>
-          <h2 className="mb-1 font-medium text-foreground">۲. زبان فارسی</h2>
-          فارسی با کد <span className="text-foreground">fa</span> پشتیبانی
-          می‌شود. مدل زبان را از خود متن تشخیص می‌دهد؛ اینجا{" "}
-          <span className="text-foreground">fa-IR</span> هم ارسال می‌شود.
-        </div>
-        <div>
-          <h2 className="mb-1 font-medium text-foreground">۳. کنترل لحن</h2>
-          دستور کارگردانی را انگلیسی بنویسید. برچسب‌ها را هم انگلیسی بگذارید،
-          حتی اگر متن فارسی باشد.
-        </div>
-      </section>
 
       <Dialog
         open={timeoutOpen}
@@ -640,15 +797,4 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
       </Dialog>
     </div>
   )
-}
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "۰:۰۰"
-  const whole = Math.floor(seconds)
-  const minutes = Math.floor(whole / 60)
-  const rest = whole % 60
-  return `${minutes.toLocaleString("fa-IR")}:${rest
-    .toString()
-    .padStart(2, "0")
-    .replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)])}`
 }

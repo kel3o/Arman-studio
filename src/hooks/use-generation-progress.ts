@@ -11,6 +11,7 @@ import {
 type Phase = "idle" | "running" | "finishing" | "done"
 
 type Handlers = {
+  durationMs: number
   onFinished: () => void
   onTimeout: () => void
 }
@@ -20,6 +21,7 @@ export function useGenerationProgress() {
   const [phase, setPhase] = useState<Phase>("idle")
   const percentRef = useRef(0)
   const phaseRef = useRef<Phase>("idle")
+  const durationMsRef = useRef(120_000)
   const reached99AtRef = useRef<number | null>(null)
   const finishFromRef = useRef(0)
   const finishStartedAtRef = useRef(0)
@@ -52,7 +54,8 @@ export function useGenerationProgress() {
       } else if (current === "running") {
         const dt = Math.min(0.05, (now - last) / 1000)
         last = now
-        let next = percentRef.current + progressRate(percentRef.current) * dt
+        let next =
+          percentRef.current + progressRate(durationMsRef.current) * dt
         if (next >= 99) {
           next = 99
           if (reached99AtRef.current === null) {
@@ -77,6 +80,7 @@ export function useGenerationProgress() {
 
   const start = useCallback((handlers: Handlers) => {
     handlersRef.current = handlers
+    durationMsRef.current = Math.max(1_000, handlers.durationMs)
     percentRef.current = 0
     reached99AtRef.current = null
     setPercent(0)
