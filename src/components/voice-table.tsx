@@ -1,51 +1,230 @@
-"use client";
+"use client"
 
-import { Check } from "lucide-react";
+import { useEffect, useRef, useState } from "react"
+import { Popover } from "@base-ui/react/popover"
+import { Check, ChevronDown, Loader2, Pause, Play } from "lucide-react"
 
-import { VOICE_GROUPS, VOICES, type VoiceOption } from "@/lib/voices";
-import { cn } from "@/lib/utils";
+import {
+  DEFAULT_VOICE,
+  VOICE_GROUPS,
+  VOICE_PREVIEW_TEXT,
+  VOICES,
+  type VoiceOption,
+} from "@/lib/voices"
+import { cn } from "@/lib/utils"
 
 type VoiceTableProps = {
-  value: string;
-  onChange: (name: string) => void;
-  disabled?: boolean;
-};
+  value: string
+  onChange: (name: string) => void
+  disabled?: boolean
+  apiKey: string
+  hasServerKey: boolean
+  onNeedKey: () => void
+}
 
-export function VoiceTable({ value, onChange, disabled }: VoiceTableProps) {
+export function VoiceTable({
+  value,
+  onChange,
+  disabled,
+  apiKey,
+  hasServerKey,
+  onNeedKey,
+}: VoiceTableProps) {
+  const [open, setOpen] = useState(false)
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null)
+  const [loadingVoice, setLoadingVoice] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState("")
+  const cacheRef = useRef(new Map<string, string>())
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const selected =
+    VOICES.find((item) => item.name === value) ??
+    VOICES.find((item) => item.name === DEFAULT_VOICE) ??
+    VOICES[0]
+
+  useEffect(() => {
+    const cache = cacheRef.current
+    return () => {
+      abortRef.current?.abort()
+      audioRef.current?.pause()
+      audioRef.current = null
+      for (const url of cache.values()) URL.revokeObjectURL(url)
+      cache.clear()
+    }
+  }, [])
+
+  function playUrl(name: string, url: string) {
+    audioRef.current?.pause()
+    const player = new Audio(url)
+    audioRef.current = player
+    player.onended = () => {
+      if (audioRef.current === player) {
+        setPlayingVoice(null)
+      }
+    }
+    void player.play().then(
+      () => setPlayingVoice(name),
+      () => setPlayingVoice(null),
+    )
+  }
+
+  async function previewVoice(name: string) {
+    if (disabled) return
+    setPreviewError("")
+
+    if (playingVoice === name) {
+      audioRef.current?.pause()
+      setPlayingVoice(null)
+      return
+    }
+
+    const cached = cacheRef.current.get(name)
+    if (cached) {
+      playUrl(name, cached)
+      return
+    }
+
+    if (!hasServerKey && !apiKey) {
+      onNeedKey()
+      return
+    }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    audioRef.current?.pause()
+    setPlayingVoice(null)
+    setLoadingVoice(name)
+
+    try {
+      const headers: HeadersInit = { "Content-Type": "application/json" }
+      if (apiKey) headers["x-gemini-api-key"] = apiKey
+
+      const response = await fetch("/api/speak", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          text: VOICE_PREVIEW_TEXT,
+          voice: name,
+          style: "natural",
+        }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string
+        } | null
+        throw new Error(payload?.error || "پخش نمونه ناموفق بود.")
+      }
+
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+      const url = URL.createObjectURL(blob)
+      const previous = cacheRef.current.get(name)
+      if (previous) URL.revokeObjectURL(previous)
+      cacheRef.current.set(name, url)
+      setLoadingVoice(null)
+      playUrl(name, url)
+    } catch (caught) {
+      if (controller.signal.aborted) return
+      setLoadingVoice(null)
+      setPreviewError(
+        caught instanceof Error ? caught.message : "پخش نمونه ناموفق بود.",
+      )
+    }
+  }
+
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="max-h-80 overflow-auto">
-        <table className="w-full min-w-[16rem] table-fixed caption-bottom border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-muted backdrop-blur-sm">
-            <tr className="border-b border-border text-muted-foreground">
-              <th className="h-9 w-[34%] px-2 text-right font-medium">اسم</th>
-              <th className="h-9 w-[40%] px-2 text-right font-medium">
-                حس صدا
-              </th>
-              <th className="h-9 w-[26%] px-2 text-right font-medium">
-                جنسیت
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {VOICE_GROUPS.map((group) => {
-              const voices = VOICES.filter((item) => item.group === group);
-              return (
-                <VoiceGroup
-                  key={group}
-                  group={group}
-                  voices={voices}
-                  value={value}
-                  disabled={disabled}
-                  onChange={onChange}
-                />
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="grid gap-1.5">
+      <Popover.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (disabled) return
+          setOpen(next)
+        }}
+      >
+        <Popover.Trigger
+          disabled={disabled}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors outline-none",
+            "hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+          )}
+        >
+          <span className="grid min-w-0 flex-1 grid-cols-[1.1fr_1.2fr_0.7fr] items-center gap-2 text-center">
+            <span className="truncate text-xs font-medium">{selected.name}</span>
+            <span className="truncate text-muted-foreground">{selected.mood}</span>
+            <span className="truncate text-muted-foreground">{selected.gender}</span>
+          </span>
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Positioner
+            side="bottom"
+            sideOffset={6}
+            align="start"
+            className="isolate z-50"
+          >
+            <Popover.Popup
+              dir="rtl"
+              className="w-(--anchor-width) min-w-[18rem] origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+            >
+              <div className="max-h-72 overflow-auto">
+                <table className="w-full table-fixed caption-bottom border-collapse text-sm">
+                  <thead className="sticky top-0 z-10 bg-muted backdrop-blur-sm">
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="h-9 w-[38%] px-2 text-center font-medium">
+                        اسم
+                      </th>
+                      <th className="h-9 w-[36%] px-2 text-center font-medium">
+                        حس صدا
+                      </th>
+                      <th className="h-9 w-[26%] px-2 text-center font-medium">
+                        جنسیت
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {VOICE_GROUPS.map((group) => {
+                      const voices = VOICES.filter((item) => item.group === group)
+                      return (
+                        <VoiceGroup
+                          key={group}
+                          group={group}
+                          voices={voices}
+                          value={value}
+                          disabled={disabled}
+                          playingVoice={playingVoice}
+                          loadingVoice={loadingVoice}
+                          onChange={(name) => {
+                            onChange(name)
+                            setOpen(false)
+                          }}
+                          onPreview={previewVoice}
+                        />
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
+      {previewError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {previewError}
+        </p>
+      ) : null}
     </div>
-  );
+  )
 }
 
 function VoiceGroup({
@@ -53,20 +232,26 @@ function VoiceGroup({
   voices,
   value,
   disabled,
+  playingVoice,
+  loadingVoice,
   onChange,
+  onPreview,
 }: {
-  group: string;
-  voices: readonly VoiceOption[];
-  value: string;
-  disabled?: boolean;
-  onChange: (name: string) => void;
+  group: string
+  voices: readonly VoiceOption[]
+  value: string
+  disabled?: boolean
+  playingVoice: string | null
+  loadingVoice: string | null
+  onChange: (name: string) => void
+  onPreview: (name: string) => void
 }) {
   return (
     <>
       <tr className="border-b border-border bg-muted/70">
         <td
           colSpan={3}
-          className="px-2 py-1.5 text-xs font-medium text-muted-foreground"
+          className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground"
         >
           {group}
         </td>
@@ -78,11 +263,14 @@ function VoiceGroup({
           selected={voice.name === value}
           zebra={index % 2 === 1}
           disabled={disabled}
+          playing={playingVoice === voice.name}
+          loading={loadingVoice === voice.name}
           onSelect={() => onChange(voice.name)}
+          onPreview={() => onPreview(voice.name)}
         />
       ))}
     </>
-  );
+  )
 }
 
 function VoiceRow({
@@ -90,13 +278,19 @@ function VoiceRow({
   selected,
   zebra,
   disabled,
+  playing,
+  loading,
   onSelect,
+  onPreview,
 }: {
-  voice: VoiceOption;
-  selected: boolean;
-  zebra: boolean;
-  disabled?: boolean;
-  onSelect: () => void;
+  voice: VoiceOption
+  selected: boolean
+  zebra: boolean
+  disabled?: boolean
+  playing: boolean
+  loading: boolean
+  onSelect: () => void
+  onPreview: () => void
 }) {
   return (
     <tr
@@ -109,20 +303,47 @@ function VoiceRow({
       )}
       onClick={onSelect}
     >
-      <td className="truncate px-2 py-2">
-        <span className="flex items-center gap-1.5 font-medium">
+      <td className="px-1.5 py-1.5 text-center">
+        <span className="flex items-center justify-center gap-1">
           {selected ? (
             <Check className="size-3.5 shrink-0 text-primary" />
           ) : (
             <span className="size-3.5 shrink-0" />
           )}
-          <span className="truncate">{voice.name}</span>
+          <span className="truncate text-xs font-medium">{voice.name}</span>
+          <button
+            type="button"
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-background/80"
+            aria-label={
+              loading
+                ? `در حال آماده کردن صدای ${voice.name}`
+                : playing
+                  ? `توقف نمونهٔ ${voice.name}`
+                  : `پخش نمونهٔ ${voice.name}`
+            }
+            disabled={disabled}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onPreview()
+            }}
+          >
+            {loading ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : playing ? (
+              <Pause className="size-3.5" />
+            ) : (
+              <Play className="size-3.5" />
+            )}
+          </button>
         </span>
       </td>
-      <td className="truncate px-2 py-2 text-muted-foreground">
+      <td className="truncate px-2 py-2 text-center text-muted-foreground">
         {voice.mood}
       </td>
-      <td className="px-2 py-2 text-muted-foreground">{voice.gender}</td>
+      <td className="px-2 py-2 text-center text-muted-foreground">
+        {voice.gender}
+      </td>
     </tr>
-  );
+  )
 }

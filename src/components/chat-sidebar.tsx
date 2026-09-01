@@ -48,7 +48,7 @@ export function ChatSidebar({
   }
 
   return (
-    <aside className="flex max-h-64 flex-col rounded-2xl border bg-card/90 shadow-sm lg:max-h-[calc(100vh-6rem)] lg:min-h-[32rem]">
+    <aside className="flex h-64 min-h-0 flex-col overflow-hidden rounded-2xl border bg-card/90 shadow-sm lg:h-full">
       <div className="flex items-center justify-between gap-2 border-b p-3">
         <div>
           <div className="text-sm font-medium">تاریخچه</div>

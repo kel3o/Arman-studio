@@ -4,6 +4,7 @@ import { audioBytesToWav } from "@/lib/pcm-to-wav"
 import { buildSpeechPrompt } from "@/lib/tts"
 import {
   DEFAULT_VOICE,
+  MAX_CUSTOM_STYLE_CHARS,
   MAX_TEXT_CHARS,
   STYLES,
   TTS_MODELS,
@@ -21,6 +22,7 @@ type SpeakBody = {
   text?: unknown
   voice?: unknown
   style?: unknown
+  customStyle?: unknown
 }
 
 function resolveApiKey(request: Request): string | null {
@@ -158,11 +160,22 @@ export async function POST(request: Request) {
     typeof body.style === "string" && STYLE_IDS.has(body.style)
       ? (body.style as StyleId)
       : "natural"
+  const customStyle =
+    typeof body.customStyle === "string"
+      ? body.customStyle.trim().slice(0, MAX_CUSTOM_STYLE_CHARS)
+      : ""
+
+  if (style === "custom" && !customStyle) {
+    return Response.json(
+      { error: "برای سبک سفارشی، توضیح کوتاهی بنویسید." },
+      { status: 400 },
+    )
+  }
 
   try {
     const { wav, model } = await generateSpeech({
       apiKey,
-      prompt: buildSpeechPrompt(text, style),
+      prompt: buildSpeechPrompt(text, style, customStyle),
       voice,
     })
 

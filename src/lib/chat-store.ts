@@ -6,6 +6,7 @@ export type ChatRecord = {
   text: string
   voice: string
   style: string
+  customStyle: string
   hasAudio: boolean
   duration: number
   manualTitle: boolean
@@ -65,6 +66,7 @@ function createBlankChat(): ChatRecord {
     text: "",
     voice: "Kore",
     style: "natural",
+    customStyle: "",
     hasAudio: false,
     duration: 0,
     manualTitle: false,
@@ -85,6 +87,7 @@ async function hydrate() {
   chats = rows
     .map((row) => ({
       ...row,
+      customStyle: row.customStyle ?? "",
       manualTitle: Boolean(row.manualTitle),
     }))
     .sort((a, b) => b.updatedAt - a.updatedAt)

@@ -81,8 +81,20 @@ export const STYLES = [
     notes: "Bright energy with a vocal smile, still clearly Iranian Persian.",
     pacing: "Lively but intelligible. Do not swallow syllables.",
   },
+  {
+    id: "custom",
+    label: "سفارشی",
+    hint: "توضیح خودتان",
+    notes:
+      "Follow the user's custom delivery direction exactly. Do not read those notes aloud.",
+    pacing:
+      "Infer pacing from the custom direction; if unspecified, use a natural conversational pace.",
+  },
 ] as const
 
 export type StyleId = (typeof STYLES)[number]["id"]
 
 export const MAX_TEXT_CHARS = 10_000
+export const MAX_CUSTOM_STYLE_CHARS = 100
+export const VOICE_PREVIEW_TEXT =
+  "سلام دوستِ خوبِ آرمان. من اینجام تا متن تو رو با صدای زیبای خودم بخونم [laughs]"

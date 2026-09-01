@@ -1,7 +1,16 @@
 import { STYLES, type StyleId } from "@/lib/voices"
 
-export function buildSpeechPrompt(text: string, styleId: StyleId): string {
+export function buildSpeechPrompt(
+  text: string,
+  styleId: StyleId,
+  customNotes = "",
+): string {
   const style = STYLES.find((item) => item.id === styleId) ?? STYLES[0]
+  const trimmedCustom = customNotes.trim()
+  const styleNotes =
+    styleId === "custom" && trimmedCustom
+      ? `${style.notes} Custom direction: ${trimmedCustom}`
+      : style.notes
 
   return [
     "Synthesize speech for the Persian (Farsi) transcript below.",
@@ -11,7 +20,7 @@ export function buildSpeechPrompt(text: string, styleId: StyleId): string {
     "",
     "### DIRECTOR'S NOTES",
     "Accent: Standard Iranian Persian (Farsi), Tehran",
-    `Style: ${style.notes}`,
+    `Style: ${styleNotes}`,
     `Pacing: ${style.pacing}`,
     "",
     "#### TRANSCRIPT",
