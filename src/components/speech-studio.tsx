@@ -467,9 +467,13 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               <Label htmlFor="api-key">API key</Label>
               <Input
                 id="api-key"
-                type="password"
+                type="text"
                 dir="ltr"
                 autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-1p-ignore="true"
+                data-lpignore="true"
                 placeholder="AIza..."
                 value={draftKey}
                 onChange={(event) => {
@@ -505,26 +509,31 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               >
                 پاک کردن
               </Button>
-              <Button
-                onClick={() => {
-                  if (keySuccess) {
+              {keySuccess ? (
+                <Button
+                  onClick={() => {
                     setKeyDialogOpen(false)
                     setKeyError("")
                     setKeySuccess(false)
-                    return
-                  }
-                  if (!draftKey.trim()) {
-                    setKeySuccess(false)
-                    setKeyError("کلید API را وارد کنید.")
-                    return
-                  }
-                  persistApiKey(draftKey)
-                  setKeyError("")
-                  setKeySuccess(true)
-                }}
-              >
-                {keySuccess ? "تایید" : "ذخیره"}
-              </Button>
+                  }}
+                >
+                  تایید
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    if (!draftKey.trim()) {
+                      setKeyError("کلید API را وارد کنید.")
+                      return
+                    }
+                    persistApiKey(draftKey)
+                    setKeyError("")
+                    setKeySuccess(true)
+                  }}
+                >
+                  ذخیره
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -541,7 +550,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           onRename={handleRenameChat}
         />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,22rem)]">
           <Card className="bg-card/90 shadow-sm">
             <CardHeader className="border-b">
               <CardTitle>متن برای خواندن</CardTitle>

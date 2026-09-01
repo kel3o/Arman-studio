@@ -153,21 +153,29 @@ export function ChatSidebar({
                     </button>
                     <Button
                       type="button"
-                      size="icon-xs"
+                      size="icon-sm"
                       variant="ghost"
                       disabled={disabled}
                       aria-label="ویرایش نام چت"
-                      onClick={() => startRename(chat)}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        startRename(chat)
+                      }}
                     >
                       <Pencil />
                     </Button>
                     <Button
                       type="button"
-                      size="icon-xs"
+                      size="icon-sm"
                       variant="ghost"
                       disabled={disabled}
                       aria-label="حذف چت"
-                      onClick={() => onDelete(chat.id)}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        onDelete(chat.id)
+                      }}
                     >
                       <Trash2 />
                     </Button>

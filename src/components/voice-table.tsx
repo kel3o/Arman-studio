@@ -14,13 +14,17 @@ type VoiceTableProps = {
 export function VoiceTable({ value, onChange, disabled }: VoiceTableProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="max-h-80 overflow-y-auto">
-        <table className="w-full caption-bottom border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
+      <div className="max-h-80 overflow-auto">
+        <table className="w-full min-w-[16rem] table-fixed caption-bottom border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-muted backdrop-blur-sm">
             <tr className="border-b border-border text-muted-foreground">
-              <th className="h-9 px-3 text-right font-medium">اسم</th>
-              <th className="h-9 px-3 text-right font-medium">حس صدا</th>
-              <th className="h-9 w-20 px-3 text-right font-medium">جنسیت</th>
+              <th className="h-9 w-[34%] px-2 text-right font-medium">اسم</th>
+              <th className="h-9 w-[40%] px-2 text-right font-medium">
+                حس صدا
+              </th>
+              <th className="h-9 w-[26%] px-2 text-right font-medium">
+                جنسیت
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -62,7 +66,7 @@ function VoiceGroup({
       <tr className="border-b border-border bg-muted/70">
         <td
           colSpan={3}
-          className="px-3 py-1.5 text-xs font-medium text-muted-foreground"
+          className="px-2 py-1.5 text-xs font-medium text-muted-foreground"
         >
           {group}
         </td>
@@ -105,18 +109,20 @@ function VoiceRow({
       )}
       onClick={onSelect}
     >
-      <td className="px-3 py-2">
-        <span className="flex items-center gap-2 font-medium">
+      <td className="truncate px-2 py-2">
+        <span className="flex items-center gap-1.5 font-medium">
           {selected ? (
             <Check className="size-3.5 shrink-0 text-primary" />
           ) : (
             <span className="size-3.5 shrink-0" />
           )}
-          {voice.name}
+          <span className="truncate">{voice.name}</span>
         </span>
       </td>
-      <td className="px-3 py-2 text-muted-foreground">{voice.mood}</td>
-      <td className="px-3 py-2 text-muted-foreground">{voice.gender}</td>
+      <td className="truncate px-2 py-2 text-muted-foreground">
+        {voice.mood}
+      </td>
+      <td className="px-2 py-2 text-muted-foreground">{voice.gender}</td>
     </tr>
   );
 }

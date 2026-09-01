@@ -53,7 +53,7 @@ export default function TagsGuidePage() {
                 key={tag.key}
                 className={
                   index % 2 === 1
-                    ? "bg-muted/55 hover:bg-muted/55"
+                    ? "bg-secondary hover:bg-secondary"
                     : "bg-card hover:bg-card"
                 }
               >
@@ -64,11 +64,10 @@ export default function TagsGuidePage() {
                   {tag.event}
                 </TableCell>
                 <TableCell className="whitespace-normal">{tag.emotion}</TableCell>
-                <TableCell
-                  className="text-center font-mono text-sm"
-                  dir="ltr"
-                >
-                  {tagWithBrackets(tag.key)}
+                <TableCell dir="ltr">
+                  <span className="block text-center font-mono text-sm">
+                    {tagWithBrackets(tag.key)}
+                  </span>
                 </TableCell>
                 <TableCell className="text-center">
                   <TagCopyButton tagKey={tag.key} />
