@@ -12,7 +12,7 @@ import {
 } from "@/lib/voices"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
+export const maxDuration = 180
 
 const VOICE_NAMES = new Set<string>(VOICES.map((voice) => voice.name))
 const STYLE_IDS = new Set<string>(STYLES.map((style) => style.id))
@@ -73,43 +73,46 @@ async function generateSpeech(options: {
 }): Promise<{ wav: Buffer; model: string }> {
   const ai = new GoogleGenAI({ apiKey: options.apiKey })
   let lastError: unknown
+  const languageCodes = ["fa-IR", "fa", undefined] as const
 
   for (const model of TTS_MODELS) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: options.prompt,
-          config: {
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              languageCode: "fa-IR",
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: options.voice,
+    for (const languageCode of languageCodes) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: options.prompt,
+            config: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                ...(languageCode ? { languageCode } : {}),
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: options.voice,
+                  },
                 },
               },
             },
-          },
-        })
+          })
 
-        const part = response.candidates?.[0]?.content?.parts?.[0]
-        const pcm = asBuffer(part?.inlineData?.data)
-        if (!pcm?.length) {
-          throw new Error(
-            "مدل به‌جای صدا، پاسخ خالی برگرداند. دوباره امتحان کنید.",
-          )
-        }
+          const part = response.candidates?.[0]?.content?.parts?.[0]
+          const pcm = asBuffer(part?.inlineData?.data)
+          if (!pcm?.length) {
+            throw new Error(
+              "مدل به‌جای صدا، پاسخ خالی برگرداند. دوباره امتحان کنید.",
+            )
+          }
 
-        return {
-          wav: audioBytesToWav(pcm, part?.inlineData?.mimeType),
-          model,
+          return {
+            wav: audioBytesToWav(pcm, part?.inlineData?.mimeType),
+            model,
+          }
+        } catch (error) {
+          lastError = error
+          if (isNotFound(error)) break
+          if (isRetryable(error) && attempt < 2) continue
+          break
         }
-      } catch (error) {
-        lastError = error
-        if (isNotFound(error)) break
-        if (isRetryable(error) && attempt < 2) continue
-        throw error
       }
     }
   }

@@ -26,7 +26,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -204,25 +203,22 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           </p>
         </div>
 
-        <Dialog
-          open={keyDialogOpen}
-          onOpenChange={(open) => {
-            setKeyDialogOpen(open)
-            if (open) setDraftKey(apiKey)
+        <Button
+          variant={needsKey ? "default" : "outline"}
+          size="lg"
+          onClick={() => {
+            setDraftKey(apiKey)
+            setKeyDialogOpen(true)
           }}
         >
-          <DialogTrigger
-            render={
-              <Button variant={needsKey ? "default" : "outline"} size="lg" />
-            }
-          >
-            <KeyRound data-icon="inline-start" />
-            {hasServerKey && !apiKey
-              ? "کلید سرور آماده است"
-              : apiKey
-                ? maskKey(apiKey)
-                : "کلید API"}
-          </DialogTrigger>
+          <KeyRound data-icon="inline-start" />
+          {hasServerKey && !apiKey
+            ? "کلید سرور آماده است"
+            : apiKey
+              ? maskKey(apiKey)
+              : "کلید API"}
+        </Button>
+        <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
           <DialogContent className="sm:max-w-md" dir="rtl">
             <DialogHeader>
               <DialogTitle>کلید Gemini</DialogTitle>
@@ -290,7 +286,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   key={sample.label}
                   type="button"
                   size="sm"
-                  variant="outline"
+                  variant={text === sample.text ? "default" : "outline"}
                   onClick={() => setText(sample.text)}
                 >
                   {sample.label}
@@ -354,11 +350,16 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   onValueChange={(value) => {
                     if (value) setVoice(value)
                   }}
+                  items={VOICES.map((item) => ({
+                    value: item.name,
+                    label: `${item.name} — ${item.mood}`,
+                  }))}
+                  modal={false}
                 >
                   <SelectTrigger id="voice" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
                     {VOICE_GROUPS.map((group) => (
                       <SelectGroup key={group}>
                         <SelectLabel>{group}</SelectLabel>

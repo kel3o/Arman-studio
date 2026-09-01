@@ -41,6 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# fetched docs
-/agent-tools
+# generated audio
+/public/*.wav
 
