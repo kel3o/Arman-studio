@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
   Download,
   KeyRound,
@@ -48,17 +48,16 @@ import {
   VOICES,
   type StyleId,
 } from "@/lib/voices"
+import {
+  getApiKeyServerSnapshot,
+  getApiKeySnapshot,
+  persistApiKey,
+  subscribeApiKey,
+} from "@/lib/api-key-store"
 import { cn } from "@/lib/utils"
-
-const STORAGE_KEY = "persian-tts.gemini-api-key"
 
 type SpeechStudioProps = {
   hasServerKey: boolean
-}
-
-function readStoredKey(): string {
-  if (typeof window === "undefined") return ""
-  return window.localStorage.getItem(STORAGE_KEY) ?? ""
 }
 
 function maskKey(key: string): string {
@@ -70,7 +69,11 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   const [text, setText] = useState<string>(SAMPLE_TEXTS[0].text)
   const [voice, setVoice] = useState<string>(DEFAULT_VOICE)
   const [style, setStyle] = useState<StyleId>("natural")
-  const [apiKey, setApiKey] = useState(readStoredKey)
+  const apiKey = useSyncExternalStore(
+    subscribeApiKey,
+    getApiKeySnapshot,
+    getApiKeyServerSnapshot,
+  )
   const [draftKey, setDraftKey] = useState("")
   const [keyDialogOpen, setKeyDialogOpen] = useState(false)
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -98,16 +101,6 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     () => VOICES.find((item) => item.name === voice) ?? VOICES[0],
     [voice],
   )
-
-  function persistKey(next: string) {
-    const trimmed = next.trim()
-    setApiKey(trimmed)
-    if (trimmed) {
-      window.localStorage.setItem(STORAGE_KEY, trimmed)
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY)
-    }
-  }
 
   async function generateSpeech() {
     const trimmed = text.trim()
@@ -251,7 +244,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  persistKey("")
+                  persistApiKey("")
                   setDraftKey("")
                   setKeyDialogOpen(false)
                 }}
@@ -260,7 +253,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               </Button>
               <Button
                 onClick={() => {
-                  persistKey(draftKey)
+                  persistApiKey(draftKey)
                   setKeyDialogOpen(false)
                 }}
               >
