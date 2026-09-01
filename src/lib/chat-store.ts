@@ -8,6 +8,7 @@ export type ChatRecord = {
   style: string
   hasAudio: boolean
   duration: number
+  manualTitle: boolean
 }
 
 const DB_NAME = "farsi-khan-arman"
@@ -66,6 +67,7 @@ function createBlankChat(): ChatRecord {
     style: "natural",
     hasAudio: false,
     duration: 0,
+    manualTitle: false,
   }
 }
 
@@ -79,8 +81,13 @@ async function hydrate() {
   if (typeof window === "undefined") return
   const db = await openDb()
   const tx = db.transaction("chats", "readonly")
-  const rows = await idbRequest(tx.objectStore("chats").getAll()) as ChatRecord[]
-  chats = rows.sort((a, b) => b.updatedAt - a.updatedAt)
+  const rows = (await idbRequest(tx.objectStore("chats").getAll())) as ChatRecord[]
+  chats = rows
+    .map((row) => ({
+      ...row,
+      manualTitle: Boolean(row.manualTitle),
+    }))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
   const stored = window.localStorage.getItem(ACTIVE_KEY)
   if (stored && chats.some((chat) => chat.id === stored)) {
     activeChatId = stored
@@ -157,12 +164,17 @@ export async function updateChat(
     ...patch,
     updatedAt: Date.now(),
   }
-  if (patch.text !== undefined) {
+  if (patch.text !== undefined && !next.manualTitle) {
     next.title = titleFromText(patch.text)
   }
   chats = [next, ...chats.filter((chat) => chat.id !== id)]
   emit()
   await persistChat(next)
+}
+
+export async function renameChat(id: string, title: string) {
+  const trimmed = title.trim() || "چت جدید"
+  await updateChat(id, { title: trimmed, manualTitle: true })
 }
 
 export async function saveChatAudio(id: string, blob: Blob, duration = 0) {

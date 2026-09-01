@@ -1,4 +1,4 @@
-# آوای فارسی · Gemini TTS
+# استدیو آرمان
 
 متن فارسی را با [Gemini text-to-speech](https://ai.google.dev/gemini-api/docs/generate-content/speech-generation) به صدای طبیعی تبدیل می‌کند. فارسی (`fa`) در فهرست زبان‌های رسمی Gemini TTS هست؛ مدل زبان را از خود متن تشخیص می‌دهد.
 

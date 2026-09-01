@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { ChatSidebar } from "@/components/chat-sidebar"
+import { VoiceTable } from "@/components/voice-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,23 +36,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import {
   DEFAULT_VOICE,
   MAX_TEXT_CHARS,
   STYLES,
-  VOICE_GROUPS,
-  VOICES,
   type StyleId,
 } from "@/lib/voices"
 import {
@@ -68,6 +58,7 @@ import {
   getChatsServerSnapshot,
   getChatsSnapshot,
   loadChatAudio,
+  renameChat,
   saveChatAudio,
   selectChat,
   subscribeChats,
@@ -131,6 +122,8 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   const pendingUrlRef = useRef<string | null>(null)
   const pendingBlobRef = useRef<Blob | null>(null)
   const activeIdRef = useRef(activeId)
+  const autoplayRef = useRef(false)
+  const audioLoadSeqRef = useRef(0)
   const [loadedChatId, setLoadedChatId] = useState("")
   const generation = useGenerationProgress()
 
@@ -155,7 +148,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     setCurrentTime(0)
     setDuration(activeChat.duration || 0)
     setStatus(activeChat.hasAudio ? "ready" : "idle")
-    setAudioUrl(null)
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return null
+    })
   }
 
   function replaceAudioUrl(next: string | null) {
@@ -176,12 +172,13 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }, [audioUrl])
 
   useEffect(() => {
+    const seq = ++audioLoadSeqRef.current
+    autoplayRef.current = false
     if (!activeId) return
-    const chat = chats.find((item) => item.id === activeId)
-    if (!chat?.hasAudio) return
     let cancelled = false
-    void loadChatAudio(chat.id).then((blob) => {
-      if (cancelled || !blob || activeIdRef.current !== chat.id) return
+    void loadChatAudio(activeId).then((blob) => {
+      if (cancelled || seq !== audioLoadSeqRef.current) return
+      if (!blob || activeIdRef.current !== activeId) return
       const url = URL.createObjectURL(blob)
       replaceAudioUrl(url)
       setStatus("ready")
@@ -189,7 +186,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     return () => {
       cancelled = true
     }
-  }, [activeId, chats])
+  }, [activeId])
 
   useEffect(() => {
     if (!activeId || loadedChatId !== activeId) return
@@ -207,11 +204,18 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     pendingBlobRef.current = null
   }
 
+  function stopPlayer() {
+    autoplayRef.current = false
+    audioRef.current?.pause()
+  }
+
   function restartSession() {
+    audioLoadSeqRef.current += 1
     abortRef.current?.abort()
     abortRef.current = null
     generation.reset()
     clearPendingAudio()
+    stopPlayer()
     replaceAudioUrl(null)
     setStatus("idle")
     setError("")
@@ -222,17 +226,28 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }
 
   function revealAudio(url: string) {
+    audioLoadSeqRef.current += 1
+    autoplayRef.current = true
     replaceAudioUrl(url)
     setStatus("ready")
-    requestAnimationFrame(() => {
-      const player = audioRef.current
-      if (!player) return
-      player.src = url
-      void player.play().then(
-        () => setIsPlaying(true),
-        () => setIsPlaying(false),
-      )
-    })
+  }
+
+  function playAudio() {
+    const player = audioRef.current
+    if (!player) return
+    const attempt = player.play()
+    if (!attempt) return
+    void attempt.then(
+      () => setIsPlaying(true),
+      (reason: unknown) => {
+        const name =
+          reason && typeof reason === "object" && "name" in reason
+            ? String(reason.name)
+            : ""
+        if (name === "AbortError") return
+        setIsPlaying(false)
+      },
+    )
   }
 
   async function handleNewChat() {
@@ -249,6 +264,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     abortRef.current?.abort()
     generation.reset()
     clearPendingAudio()
+    stopPlayer()
     selectChat(id)
   }
 
@@ -256,6 +272,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     if (isLoading) return
     if (id === activeId) restartSession()
     void deleteChat(id)
+  }
+
+  function handleRenameChat(id: string, title: string) {
+    void renameChat(id, title)
   }
 
   async function generateSpeech() {
@@ -275,6 +295,8 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    audioLoadSeqRef.current += 1
+    stopPlayer()
     clearPendingAudio()
     replaceAudioUrl(null)
     setStatus("loading")
@@ -347,8 +369,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     const player = audioRef.current
     if (!player || !audioUrl) return
     if (player.paused) {
-      void player.play()
-      setIsPlaying(true)
+      playAudio()
     } else {
       player.pause()
       setIsPlaying(false)
@@ -375,7 +396,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             Gemini TTS · ویژه آرمان
           </Badge>
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            فارسی خوان مخصوص آرمان
+            استدیو آرمان
           </h1>
           <p className="text-base leading-8 text-muted-foreground sm:text-lg">
             متن فارسی را بنویسید تا مدل گفتار Gemini آن را با لهجهٔ ایرانی
@@ -486,6 +507,12 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               </Button>
               <Button
                 onClick={() => {
+                  if (keySuccess) {
+                    setKeyDialogOpen(false)
+                    setKeyError("")
+                    setKeySuccess(false)
+                    return
+                  }
                   if (!draftKey.trim()) {
                     setKeySuccess(false)
                     setKeyError("کلید API را وارد کنید.")
@@ -496,7 +523,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   setKeySuccess(true)
                 }}
               >
-                ذخیره
+                {keySuccess ? "تایید" : "ذخیره"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -511,6 +538,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           onNewChat={() => void handleNewChat()}
           onSelect={handleSelectChat}
           onDelete={handleDeleteChat}
+          onRename={handleRenameChat}
         />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
@@ -608,41 +636,12 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             <Card>
               <CardContent className="flex flex-col gap-5">
                 <div className="grid gap-2">
-                  <Label htmlFor="voice" className="text-base">
-                    صدا
-                  </Label>
-                  <Select
+                  <Label className="text-base">صدا</Label>
+                  <VoiceTable
                     value={voice}
-                    onValueChange={(value) => {
-                      if (value) setVoice(value)
-                    }}
-                    items={VOICES.map((item) => ({
-                      value: item.name,
-                      label: `${item.name} — ${item.mood}`,
-                    }))}
-                    modal={false}
-                  >
-                    <SelectTrigger id="voice" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start" alignItemWithTrigger={false}>
-                      {VOICE_GROUPS.map((group) => (
-                        <SelectGroup key={group}>
-                          <SelectLabel>{group}</SelectLabel>
-                          {VOICES.filter((item) => item.group === group).map(
-                            (item) => (
-                              <SelectItem key={item.name} value={item.name}>
-                                {item.name}
-                                <span className="text-muted-foreground">
-                                  {item.mood}
-                                </span>
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    disabled={isLoading}
+                    onChange={setVoice}
+                  />
                 </div>
 
                 <div className="grid gap-2">
@@ -691,6 +690,11 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   onEnded={() => {
                     setIsPlaying(false)
                     setCurrentTime(0)
+                  }}
+                  onCanPlay={() => {
+                    if (!autoplayRef.current) return
+                    autoplayRef.current = false
+                    playAudio()
                   }}
                   onLoadedMetadata={(event) => {
                     const nextDuration = event.currentTarget.duration || 0

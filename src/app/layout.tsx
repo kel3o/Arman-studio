@@ -12,7 +12,7 @@ const vazirmatn = Vazirmatn({
 })
 
 export const metadata: Metadata = {
-  title: "فارسی خوان مخصوص آرمان",
+  title: "استدیو آرمان",
   description:
     "متن فارسی را با Gemini text-to-speech به صدای طبیعی با لهجهٔ ایرانی تبدیل کنید.",
 }

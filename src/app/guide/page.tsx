@@ -1,82 +1,73 @@
-import type { Metadata } from "next"
-import Link from "next/link"
-import { ArrowRight, BookOpen } from "lucide-react"
+import Link from "next/link";
+import { BookOpen, KeyRound, LayoutPanelTop, Tags } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { TONE_TAGS } from "@/lib/tone-tags"
+const TOPICS = [
+  {
+    href: "/guide/api",
+    title: "دریافت و اتصال API از Gemini",
+    description:
+      "چطور از Google AI Studio کلید بگیری و آن را در استدیو آرمان ثبت کنی.",
+    icon: KeyRound,
+  },
+  {
+    href: "/guide/app",
+    title: "راهنمای استفاده برنامه",
+    description:
+      "توضیح مختصر تمام بخش‌های صفحه استودیو و کارکرد هر کدام.",
+    icon: LayoutPanelTop,
+  },
+  {
+    href: "/guide/tags",
+    title: "راهنمای برچسب‌های لحن",
+    description:
+      "برچسب‌های انگلیسی داخل کروشه برای نجوا، فریاد، خنده و ده‌ها لحن دیگر.",
+    icon: Tags,
+  },
+];
 
-export const metadata: Metadata = {
-  title: "صفحه راهنما · فارسی خوان مخصوص آرمان",
-  description: "جدول برچسب‌های کنترل لحن برای Gemini TTS",
-}
-
-export default function GuidePage() {
+export default function GuideHubPage() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:py-12">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="max-w-3xl space-y-3">
-          <Badge variant="outline" className="border-primary/20 bg-accent/70">
-            <BookOpen className="size-3" />
-            صفحه راهنما
-          </Badge>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            راهنمای برچسب‌های لحن
-          </h1>
-          <p className="text-base leading-8 text-muted-foreground sm:text-lg">
-            این برچسب‌ها را داخل متن فارسی بگذارید تا مدل بداند جمله را چطور
-            بخواند. برچسب را انگلیسی و داخل کروشه بنویسید؛ مثلاً{" "}
-            <code className="rounded-md bg-muted px-1.5 py-0.5 text-sm">
-              [whispers]
-            </code>
-            . در جدول، عبارت کلیدی داخل {"{}"} آمده است. طبق مستندات Gemini،
-            حتی برای متن فارسی هم برچسب را انگلیسی بگذارید.
-          </p>
-        </div>
-        <Button variant="outline" size="lg" nativeButton={false} render={<Link href="/" />}>
-          <ArrowRight data-icon="inline-start" />
-          بازگشت به استودیو
-        </Button>
+    <>
+      <header className="space-y-3">
+        <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <BookOpen className="size-4" />
+          استدیو آرمان
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          راهنما
+        </h1>
+        <p className="max-w-none text-pretty leading-8 text-muted-foreground">
+          موضوع مورد نظرت را انتخاب کن. هر بخش جداگانه نوشته شده تا سریع به
+          همان چیزی برسی که لازم داری.
+        </p>
       </header>
 
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-16 text-center">ردیف</TableHead>
-              <TableHead>اتفاق</TableHead>
-              <TableHead>احساس پشت آن</TableHead>
-              <TableHead className="font-mono">عبارت کلیدی</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {TONE_TAGS.map((tag, index) => (
-              <TableRow key={tag.key}>
-                <TableCell className="text-center tabular-nums text-muted-foreground">
-                  {(index + 1).toLocaleString("fa-IR")}
-                </TableCell>
-                <TableCell className="whitespace-normal leading-7">
-                  {tag.event}
-                </TableCell>
-                <TableCell className="whitespace-normal leading-7">
-                  {tag.feeling}
-                </TableCell>
-                <TableCell className="font-mono text-sm whitespace-nowrap" dir="ltr">
-                  {tag.key}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  )
+      <ol className="grid gap-4">
+        {TOPICS.map((topic, index) => {
+          const Icon = topic.icon;
+          return (
+            <li key={topic.href}>
+              <Link
+                href={topic.href}
+                className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/40 hover:bg-muted/40"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 space-y-1">
+                  <span className="flex items-center gap-2 text-lg font-semibold">
+                    <Icon className="size-4 text-primary" />
+                    {topic.title}
+                  </span>
+                  <span className="block text-sm leading-7 text-muted-foreground">
+                    {topic.description}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </>
+  );
 }
