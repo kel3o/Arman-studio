@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import {
   Download,
   KeyRound,
-  Loader2,
   Pause,
   Play,
+  RotateCcw,
   Volume2,
 } from "lucide-react"
 
@@ -54,6 +54,8 @@ import {
   persistApiKey,
   subscribeApiKey,
 } from "@/lib/api-key-store"
+import { formatPercent } from "@/lib/generation-progress"
+import { useGenerationProgress } from "@/hooks/use-generation-progress"
 import { cn } from "@/lib/utils"
 
 type SpeechStudioProps = {
@@ -80,11 +82,15 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     "idle",
   )
   const [error, setError] = useState("")
+  const [timeoutOpen, setTimeoutOpen] = useState(false)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [playbackProgress, setPlaybackProgress] = useState(0)
   const [duration, setDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const pendingUrlRef = useRef<string | null>(null)
+  const generation = useGenerationProgress()
 
   useEffect(() => {
     return () => {
@@ -93,7 +99,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }, [audioUrl])
 
   const remaining = MAX_TEXT_CHARS - text.length
-  const isLoading = status === "loading"
+  const isLoading =
+    status === "loading" ||
+    generation.phase === "running" ||
+    generation.phase === "finishing"
   const canSpeak = text.trim().length > 0 && !isLoading
   const needsKey = !hasServerKey && !apiKey
 
@@ -101,6 +110,47 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     () => VOICES.find((item) => item.name === voice) ?? VOICES[0],
     [voice],
   )
+
+  function clearPendingAudio() {
+    if (pendingUrlRef.current) {
+      URL.revokeObjectURL(pendingUrlRef.current)
+      pendingUrlRef.current = null
+    }
+  }
+
+  function restartSession() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    generation.reset()
+    clearPendingAudio()
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return null
+    })
+    setStatus("idle")
+    setError("")
+    setTimeoutOpen(false)
+    setIsPlaying(false)
+    setPlaybackProgress(0)
+    setDuration(0)
+  }
+
+  function revealAudio(url: string) {
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return url
+    })
+    setStatus("ready")
+    requestAnimationFrame(() => {
+      const player = audioRef.current
+      if (!player) return
+      player.src = url
+      void player.play().then(
+        () => setIsPlaying(true),
+        () => setIsPlaying(false),
+      )
+    })
+  }
 
   async function generateSpeech() {
     const trimmed = text.trim()
@@ -116,10 +166,35 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
       return
     }
 
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    clearPendingAudio()
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous)
+      return null
+    })
     setStatus("loading")
     setError("")
+    setTimeoutOpen(false)
     setIsPlaying(false)
-    setProgress(0)
+    setPlaybackProgress(0)
+    setDuration(0)
+
+    generation.start({
+      onFinished: () => {
+        const url = pendingUrlRef.current
+        pendingUrlRef.current = null
+        if (url) revealAudio(url)
+      },
+      onTimeout: () => {
+        controller.abort()
+        generation.reset()
+        clearPendingAudio()
+        setStatus("error")
+        setTimeoutOpen(true)
+      },
+    })
 
     try {
       const headers: HeadersInit = { "Content-Type": "application/json" }
@@ -129,6 +204,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
         method: "POST",
         headers,
         body: JSON.stringify({ text: trimmed, voice, style }),
+        signal: controller.signal,
       })
 
       if (!response.ok) {
@@ -139,23 +215,17 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
       }
 
       const blob = await response.blob()
-      const nextUrl = URL.createObjectURL(blob)
-      setAudioUrl((previous) => {
-        if (previous) URL.revokeObjectURL(previous)
-        return nextUrl
-      })
-      setStatus("ready")
-
-      requestAnimationFrame(() => {
-        const player = audioRef.current
-        if (!player) return
-        player.src = nextUrl
-        void player.play().then(
-          () => setIsPlaying(true),
-          () => setIsPlaying(false),
-        )
-      })
+      if (controller.signal.aborted) {
+        return
+      }
+      pendingUrlRef.current = URL.createObjectURL(blob)
+      generation.complete()
     } catch (caught) {
+      if (controller.signal.aborted) {
+        return
+      }
+      generation.reset()
+      clearPendingAudio()
       setStatus("error")
       setError(
         caught instanceof Error ? caught.message : "تولید صدا ناموفق بود.",
@@ -280,6 +350,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   type="button"
                   size="sm"
                   variant={text === sample.text ? "default" : "outline"}
+                  disabled={isLoading}
                   onClick={() => setText(sample.text)}
                 >
                   {sample.label}
@@ -291,6 +362,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               onChange={(event) => setText(event.target.value.slice(0, MAX_TEXT_CHARS))}
               dir="rtl"
               rows={10}
+              disabled={isLoading}
               placeholder="متن فارسی را اینجا بنویسید..."
               className="min-h-52 text-base leading-8 md:text-lg"
             />
@@ -298,7 +370,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               <span>برچسب‌ها را انگلیسی بگذارید: [excited] [very slow]</span>
               <span>{remaining.toLocaleString("fa-IR")} نویسه مانده</span>
             </div>
-            {status === "error" ? (
+            {status === "error" && !timeoutOpen ? (
               <p
                 role="alert"
                 className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -306,24 +378,62 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 {error}
               </p>
             ) : null}
-            <Button
-              size="lg"
-              className="h-11 w-full text-base"
-              onClick={() => void generateSpeech()}
-              disabled={!canSpeak}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin" data-icon="inline-start" />
-                  در حال ساخت صدا...
-                </>
-              ) : (
-                <>
+            {isLoading ? (
+              <div className="space-y-3 rounded-xl border bg-muted/40 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">
+                    در حال تولید فایل صوتی
+                  </span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatPercent(generation.percent)}
+                  </span>
+                </div>
+                <div
+                  className="h-3 overflow-hidden rounded-full bg-background"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.floor(generation.percent)}
+                >
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{
+                      width: `${Math.min(100, generation.percent)}%`,
+                    }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={restartSession}
+                >
+                  <RotateCcw data-icon="inline-start" />
+                  ری استارت
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Button
+                  size="lg"
+                  className="h-11 w-full text-base"
+                  onClick={() => void generateSpeech()}
+                  disabled={!canSpeak}
+                >
                   <Volume2 data-icon="inline-start" />
-                  متن را بخوان
-                </>
-              )}
-            </Button>
+                  تولید فایل صوتی
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={restartSession}
+                >
+                  <RotateCcw data-icon="inline-start" />
+                  ری استارت
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -403,7 +513,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               <CardTitle>پخش</CardTitle>
               <CardDescription>
                 {isLoading
-                  ? "صدا در حال تولید است."
+                  ? `تولید فایل صوتی · ${formatPercent(generation.percent)}`
                   : audioUrl
                     ? "آمادهٔ پخش و دانلود."
                     : "هنوز صدایی ساخته نشده."}
@@ -416,7 +526,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => {
                   setIsPlaying(false)
-                  setProgress(0)
+                  setPlaybackProgress(0)
                 }}
                 onLoadedMetadata={(event) => {
                   setDuration(event.currentTarget.duration || 0)
@@ -424,7 +534,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 onTimeUpdate={(event) => {
                   const current = event.currentTarget.currentTime
                   const total = event.currentTarget.duration || 0
-                  setProgress(total ? current / total : 0)
+                  setPlaybackProgress(total ? current / total : 0)
                 }}
               />
               <div className="flex items-center gap-3">
@@ -432,7 +542,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   size="icon-lg"
                   variant="outline"
                   onClick={togglePlayback}
-                  disabled={!audioUrl}
+                  disabled={!audioUrl || isLoading}
                   aria-label={isPlaying ? "توقف" : "پخش"}
                 >
                   {isPlaying ? <Pause /> : <Play />}
@@ -440,20 +550,32 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary transition-[width] duration-150"
-                      style={{ width: `${Math.round(progress * 100)}%` }}
+                      className="h-full rounded-full bg-primary"
+                      style={{
+                        width: `${Math.round(
+                          (isLoading ? generation.percent : playbackProgress * 100),
+                        )}%`,
+                      }}
                     />
                   </div>
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>
-                      {isLoading ? "در حال آماده‌سازی" : "WAV · ۲۴ کیلوهرتز"}
+                      {isLoading
+                        ? "در حال ساخت فایل"
+                        : audioUrl
+                          ? "WAV · ۲۴ کیلوهرتز"
+                          : "منتظر تولید"}
                     </span>
-                    <span>{formatTime(duration * progress)}</span>
+                    <span>
+                      {isLoading
+                        ? formatPercent(generation.percent)
+                        : formatTime(duration * playbackProgress)}
+                    </span>
                   </div>
                 </div>
                 <Button
                   variant="outline"
-                  disabled={!audioUrl}
+                  disabled={!audioUrl || isLoading}
                   onClick={() => {
                     if (!audioUrl) return
                     const link = document.createElement("a")
@@ -490,6 +612,32 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           حتی اگر متن فارسی باشد.
         </div>
       </section>
+
+      <Dialog
+        open={timeoutOpen}
+        disablePointerDismissal
+        onOpenChange={(open) => {
+          if (open) setTimeoutOpen(true)
+        }}
+      >
+        <DialogContent className="sm:max-w-md" dir="rtl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>خطا در تولید فایل</DialogTitle>
+            <DialogDescription className="space-y-2 text-start leading-7">
+              <span className="block">در تولید فایل مشکلی صورت گرفته.</span>
+              <span className="block">
+                لطفا دکمه‌ی ری استارت را بزنید و مجدد تلاش کنید.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button className="w-full sm:w-auto" onClick={restartSession}>
+              <RotateCcw data-icon="inline-start" />
+              ری استارت
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

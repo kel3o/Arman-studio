@@ -12,7 +12,7 @@ import {
 } from "@/lib/voices"
 
 export const runtime = "nodejs"
-export const maxDuration = 180
+export const maxDuration = 600
 
 const VOICE_NAMES = new Set<string>(VOICES.map((voice) => voice.name))
 const STYLE_IDS = new Set<string>(STYLES.map((style) => style.id))

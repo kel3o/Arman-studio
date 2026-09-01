@@ -123,4 +123,4 @@ export const SAMPLE_TEXTS = [
   },
 ] as const
 
-export const MAX_TEXT_CHARS = 4_000
+export const MAX_TEXT_CHARS = 10_000
