@@ -148,7 +148,7 @@ export function VoiceTable({
         <Popover.Trigger
           disabled={disabled}
           className={cn(
-            "flex w-full items-center gap-2 rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors outline-none",
+            "flex w-full cursor-pointer items-center gap-2 rounded-xl border border-input bg-background px-3 py-2 text-sm transition-colors outline-none",
             "hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
@@ -242,7 +242,7 @@ function VoiceGroup({
 }) {
   return (
     <>
-      <div className="col-span-3 bg-muted/70 px-2 py-1.5 text-center text-xs font-medium text-muted-foreground">
+      <div className="col-span-3 bg-muted/70 px-2 py-1.5 text-center text-xs font-bold text-foreground">
         {group}
       </div>
       {voices.map((voice, index) => (
@@ -301,7 +301,7 @@ function VoiceRow({
           <span className="truncate text-xs font-medium">{voice.name}</span>
           <button
             type="button"
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-background/80"
+            className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground hover:bg-background/80"
             aria-label={
               loading
                 ? `در حال آماده کردن صدای ${voice.name}`

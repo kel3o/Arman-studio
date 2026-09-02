@@ -10,14 +10,11 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Undo2,
-  Redo2,
   Volume2,
 } from "lucide-react"
 
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { VoiceTable } from "@/components/voice-table"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -419,6 +416,27 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     seekTo(currentTime + delta)
   }
 
+  async function retryFresh() {
+    abortRef.current?.abort()
+    try {
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(
+          registrations.map((registration) => registration.unregister()),
+        )
+      }
+      if ("caches" in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((key) => caches.delete(key)))
+      }
+    } catch {
+      // Still reload even if cache APIs are blocked.
+    }
+    const url = new URL(window.location.href)
+    url.searchParams.set("reload", String(Date.now()))
+    window.location.replace(url.toString())
+  }
+
   function openCustomStyleDialog() {
     setDraftCustomStyle(customStyle)
     setCustomStyleError("")
@@ -448,15 +466,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   return (
     <div className="mx-auto flex h-dvh min-h-0 w-full flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4">
       <header className="shrink-0 space-y-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1.5">
-            <Badge variant="outline" className="border-primary/20 bg-accent/70">
-              Gemini TTS · ویژه آرمان
-            </Badge>
-            <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              استدیو آرمان
-            </h1>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            استدیو آرمان
+          </h1>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -466,7 +479,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               render={<Link href="/guide" />}
             >
               <BookOpen data-icon="inline-start" />
-              صفحه راهنما
+              راهنما
             </Button>
             <Button
               variant={needsKey ? "default" : "outline"}
@@ -532,7 +545,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 spellCheck={false}
                 data-1p-ignore="true"
                 data-lpignore="true"
-                placeholder="AIza..."
+                placeholder="Write Google API Key Here ..."
                 value={draftKey}
                 onChange={(event) => {
                   setDraftKey(event.target.value)
@@ -724,10 +737,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     type="button"
                     variant="outline"
                     className="w-full"
-                    onClick={restartSession}
+                    onClick={() => void retryFresh()}
                   >
                     <RotateCcw data-icon="inline-start" />
-                    ری استارت
+                    تلاش مجدد
                   </Button>
                 </div>
               ) : (
@@ -745,10 +758,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     type="button"
                     variant="outline"
                     className="w-full"
-                    onClick={restartSession}
+                    onClick={() => void retryFresh()}
                   >
                     <RotateCcw data-icon="inline-start" />
-                    ری استارت
+                    تلاش مجدد
                   </Button>
                 </div>
               )}
@@ -785,7 +798,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                       type="button"
                       onClick={() => handleStyleClick(item.id)}
                       className={cn(
-                        "rounded-xl border px-2.5 py-1.5 text-start transition-colors",
+                        "cursor-pointer rounded-xl border px-2.5 py-1.5 text-start transition-colors",
                         style === item.id
                           ? "border-primary bg-accent text-foreground"
                           : "border-border bg-background hover:bg-muted",
@@ -842,66 +855,69 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   setCurrentTime(event.currentTarget.currentTime || 0)
                 }}
               />
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-col gap-2" dir="ltr">
+                <Slider
+                  min={0}
+                  max={Math.max(duration, 0.1)}
+                  step={0.1}
+                  disabled={!canSeek}
+                  value={[currentTime]}
+                  onValueChange={(value) => {
+                    const next = Array.isArray(value) ? value[0] : value
+                    seekTo(Number(next) || 0)
+                  }}
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
                 <Button
-                  size="icon-lg"
                   variant="outline"
+                  size="sm"
+                  className="h-8 min-w-0 px-1.5 text-xs"
+                  disabled={!canSeek}
+                  onClick={() => skip(-10)}
+                >
+                  ۱۰ ثانیه عقب
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 min-w-0 px-1.5"
                   onClick={togglePlayback}
                   disabled={!audioUrl || isLoading}
                   aria-label={isPlaying ? "توقف" : "پخش"}
                 >
                   {isPlaying ? <Pause /> : <Play />}
                 </Button>
-                <div className="flex min-w-0 flex-1 flex-col gap-2" dir="ltr">
-                  <Slider
-                    min={0}
-                    max={Math.max(duration, 0.1)}
-                    step={0.1}
-                    disabled={!canSeek}
-                    value={[currentTime]}
-                    onValueChange={(value) => {
-                      const next = Array.isArray(value) ? value[0] : value
-                      seekTo(Number(next) || 0)
-                    }}
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{formatTime(currentTime)}</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
-                  disabled={!canSeek}
-                  onClick={() => skip(-10)}
-                >
-                  <Undo2 data-icon="inline-start" />
-                  ۱۰ ثانیه عقب
-                </Button>
-                <Button
-                  variant="outline"
+                  size="sm"
+                  className="h-8 min-w-0 px-1.5 text-xs"
                   disabled={!canSeek}
                   onClick={() => skip(10)}
                 >
-                  <Redo2 data-icon="inline-start" />
                   ۱۰ ثانیه جلو
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 min-w-0 px-1.5 text-xs"
+                  disabled={!audioUrl || isLoading}
+                  onClick={() => {
+                    if (!audioUrl) return
+                    const link = document.createElement("a")
+                    link.href = audioUrl
+                    link.download = "persian-speech.wav"
+                    link.click()
+                  }}
+                >
+                  <Download data-icon="inline-start" />
+                  دانلود
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                disabled={!audioUrl || isLoading}
-                onClick={() => {
-                  if (!audioUrl) return
-                  const link = document.createElement("a")
-                  link.href = audioUrl
-                  link.download = "persian-speech.wav"
-                  link.click()
-                }}
-              >
-                <Download data-icon="inline-start" />
-                دانلود
-              </Button>
             </CardContent>
           </Card>
         </div>
@@ -920,14 +936,17 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             <DialogDescription className="space-y-2 text-start leading-7">
               <span className="block">در تولید فایل مشکلی صورت گرفته.</span>
               <span className="block">
-                لطفا دکمه‌ی ری استارت را بزنید و مجدد تلاش کنید.
+                لطفا دکمه‌ی تلاش مجدد را بزنید تا صفحه تازه شود.
               </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button className="w-full sm:w-auto" onClick={restartSession}>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => void retryFresh()}
+            >
               <RotateCcw data-icon="inline-start" />
-              ری استارت
+              تلاش مجدد
             </Button>
           </DialogFooter>
         </DialogContent>

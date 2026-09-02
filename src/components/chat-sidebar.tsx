@@ -132,7 +132,7 @@ export function ChatSidebar({
                       type="button"
                       disabled={disabled}
                       onClick={() => onSelect(chat.id)}
-                      className="min-w-0 flex-1 text-start"
+                      className="min-w-0 flex-1 cursor-pointer text-start"
                     >
                       <div className="truncate text-sm font-medium">
                         {chat.title}

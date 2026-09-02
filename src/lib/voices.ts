@@ -6,12 +6,12 @@ export const TTS_MODELS = [
 export const DEFAULT_VOICE = "Kore"
 
 export const VOICES = [
-  { name: "Kore", mood: "قاطع و واضح", gender: "زن", group: "روشن" },
-  { name: "Aoede", mood: "سبک و روان", gender: "زن", group: "روشن" },
-  { name: "Leda", mood: "جوان و زنده", gender: "زن", group: "روشن" },
-  { name: "Zephyr", mood: "درخشان", gender: "زن", group: "روشن" },
-  { name: "Autonoe", mood: "شفاف", gender: "زن", group: "روشن" },
-  { name: "Laomedeia", mood: "سرزنده", gender: "زن", group: "روشن" },
+  { name: "Kore", mood: "قاطع و واضح", gender: "زن", group: "شفاف" },
+  { name: "Aoede", mood: "سبک و روان", gender: "زن", group: "شفاف" },
+  { name: "Leda", mood: "جوان و زنده", gender: "زن", group: "شفاف" },
+  { name: "Zephyr", mood: "درخشان", gender: "زن", group: "شفاف" },
+  { name: "Autonoe", mood: "شفاف", gender: "زن", group: "شفاف" },
+  { name: "Laomedeia", mood: "سرزنده", gender: "زن", group: "شفاف" },
   { name: "Achernar", mood: "نرم", gender: "زن", group: "ملایم" },
   { name: "Sulafat", mood: "گرم", gender: "زن", group: "ملایم" },
   { name: "Vindemiatrix", mood: "آرام", gender: "زن", group: "ملایم" },
@@ -40,7 +40,7 @@ export const VOICES = [
 
 export type VoiceOption = (typeof VOICES)[number]
 
-export const VOICE_GROUPS = ["روشن", "ملایم", "گرم", "رسمی", "عمیق"] as const
+export const VOICE_GROUPS = ["شفاف", "ملایم", "گرم", "رسمی", "عمیق"] as const
 
 export const STYLES = [
   {
