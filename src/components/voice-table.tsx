@@ -153,7 +153,7 @@ export function VoiceTable({
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
         >
-          <span className="grid min-w-0 flex-1 grid-cols-[1.1fr_1.2fr_0.7fr] items-center gap-2 text-center">
+          <span className="grid min-w-0 flex-1 grid-cols-3 items-center gap-2 text-center">
             <span className="truncate text-xs font-medium">{selected.name}</span>
             <span className="truncate text-muted-foreground">{selected.mood}</span>
             <span className="truncate text-muted-foreground">{selected.gender}</span>
@@ -174,45 +174,39 @@ export function VoiceTable({
           >
             <Popover.Popup
               dir="rtl"
-              className="w-(--anchor-width) min-w-[18rem] origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+              className="min-w-[24rem] w-(--anchor-width) origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
             >
-              <div className="max-h-72 overflow-auto">
-                <table className="w-full table-fixed caption-bottom border-collapse text-sm">
-                  <thead className="sticky top-0 z-10 bg-muted backdrop-blur-sm">
-                    <tr className="border-b border-border text-muted-foreground">
-                      <th className="h-9 w-[38%] px-2 text-center font-medium">
-                        اسم
-                      </th>
-                      <th className="h-9 w-[36%] px-2 text-center font-medium">
-                        حس صدا
-                      </th>
-                      <th className="h-9 w-[26%] px-2 text-center font-medium">
-                        جنسیت
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {VOICE_GROUPS.map((group) => {
-                      const voices = VOICES.filter((item) => item.group === group)
-                      return (
-                        <VoiceGroup
-                          key={group}
-                          group={group}
-                          voices={voices}
-                          value={value}
-                          disabled={disabled}
-                          playingVoice={playingVoice}
-                          loadingVoice={loadingVoice}
-                          onChange={(name) => {
-                            onChange(name)
-                            setOpen(false)
-                          }}
-                          onPreview={previewVoice}
-                        />
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="max-h-72 overflow-auto [scrollbar-gutter:stable]">
+                <div className="grid w-full grid-cols-3 text-sm">
+                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center font-medium text-muted-foreground backdrop-blur-sm">
+                    اسم
+                  </div>
+                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center font-medium text-muted-foreground backdrop-blur-sm">
+                    حس صدا
+                  </div>
+                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center font-medium text-muted-foreground backdrop-blur-sm">
+                    جنسیت
+                  </div>
+                  {VOICE_GROUPS.map((group) => {
+                    const voices = VOICES.filter((item) => item.group === group)
+                    return (
+                      <VoiceGroup
+                        key={group}
+                        group={group}
+                        voices={voices}
+                        value={value}
+                        disabled={disabled}
+                        playingVoice={playingVoice}
+                        loadingVoice={loadingVoice}
+                        onChange={(name) => {
+                          onChange(name)
+                          setOpen(false)
+                        }}
+                        onPreview={previewVoice}
+                      />
+                    )
+                  })}
+                </div>
               </div>
             </Popover.Popup>
           </Popover.Positioner>
@@ -248,14 +242,9 @@ function VoiceGroup({
 }) {
   return (
     <>
-      <tr className="border-b border-border bg-muted/70">
-        <td
-          colSpan={3}
-          className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground"
-        >
-          {group}
-        </td>
-      </tr>
+      <div className="col-span-3 bg-muted/70 px-2 py-1.5 text-center text-xs font-medium text-muted-foreground">
+        {group}
+      </div>
       {voices.map((voice, index) => (
         <VoiceRow
           key={voice.name}
@@ -292,19 +281,18 @@ function VoiceRow({
   onSelect: () => void
   onPreview: () => void
 }) {
+  const rowClass = cn(
+    "flex cursor-pointer items-center justify-center border-b border-border/70 px-1.5 py-1.5 text-center",
+    zebra && !selected && "bg-muted/40",
+    selected && "bg-primary/12",
+    !selected && "hover:bg-primary/8",
+    disabled && "pointer-events-none opacity-60",
+  )
+
   return (
-    <tr
-      className={cn(
-        "cursor-pointer border-b border-border/70 last:border-0",
-        zebra && !selected && "bg-muted/40",
-        selected && "bg-primary/12",
-        !selected && "hover:bg-primary/8",
-        disabled && "pointer-events-none opacity-60",
-      )}
-      onClick={onSelect}
-    >
-      <td className="px-1.5 py-1.5 text-center">
-        <span className="flex items-center justify-center gap-1">
+    <>
+      <div className={rowClass} onClick={onSelect}>
+        <span className="flex w-full min-w-0 items-center justify-center gap-1">
           {selected ? (
             <Check className="size-3.5 shrink-0 text-primary" />
           ) : (
@@ -337,13 +325,13 @@ function VoiceRow({
             )}
           </button>
         </span>
-      </td>
-      <td className="truncate px-2 py-2 text-center text-muted-foreground">
+      </div>
+      <div className={cn(rowClass, "truncate text-muted-foreground")} onClick={onSelect}>
         {voice.mood}
-      </td>
-      <td className="px-2 py-2 text-center text-muted-foreground">
+      </div>
+      <div className={cn(rowClass, "text-muted-foreground")} onClick={onSelect}>
         {voice.gender}
-      </td>
-    </tr>
+      </div>
+    </>
   )
 }

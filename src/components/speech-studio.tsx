@@ -172,6 +172,17 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }, [activeId])
 
   useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow
+    const previousBodyOverflow = document.body.style.overflow
+    document.documentElement.style.overflow = "hidden"
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow
+      document.body.style.overflow = previousBodyOverflow
+    }
+  }, [])
+
+  useEffect(() => {
     return () => {
       if (audioUrl) URL.revokeObjectURL(audioUrl)
     }
@@ -435,10 +446,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full flex-col gap-3 overflow-x-hidden px-3 py-3 sm:px-4 lg:h-dvh lg:overflow-hidden lg:py-4">
-      <header className="shrink-0 space-y-3">
+    <div className="mx-auto flex h-dvh min-h-0 w-full flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4">
+      <header className="shrink-0 space-y-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Badge variant="outline" className="border-primary/20 bg-accent/70">
               Gemini TTS · ویژه آرمان
             </Badge>
@@ -472,7 +483,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             </Button>
           </div>
         </div>
-        <p className="w-full text-base leading-8 text-muted-foreground sm:text-lg">
+        <p className="w-full max-w-none text-sm leading-7 text-muted-foreground sm:text-base">
           متن فارسی را بنویسید تا مدل گفتار آن را با لهجهٔ ایرانی بخواند. برای
           بهبود لحن می‌توانید از عبارت‌های انگلیسی مرتبط در پایان جملات استفاده
           کنید. لیست این عبارت‌ها در{" "}
@@ -643,7 +654,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
         </Dialog>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)_minmax(20rem,22rem)] lg:grid-rows-1 lg:items-stretch *:min-h-0">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[16rem_minmax(0,1fr)_minmax(20rem,22rem)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:overflow-hidden">
         <ChatSidebar
           chats={chats}
           activeId={activeId}
@@ -654,14 +665,14 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           onRename={handleRenameChat}
         />
 
-        <Card className="flex h-[min(28rem,70vh)] min-h-0 flex-col overflow-hidden bg-card/90 shadow-sm lg:h-full">
-          <CardHeader className="shrink-0 border-b">
+        <Card className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-card/90 shadow-sm max-lg:h-[min(28rem,70vh)]">
+          <CardHeader className="border-b">
             <CardTitle>متن برای خواندن</CardTitle>
             <CardDescription>
               مدل باید دقیقاً همین متن را بلند بخواند، نه ترجمه کند.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pt-4">
+          <CardContent className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3 overflow-hidden pt-4">
             <Textarea
               value={text}
               onChange={(event) =>
@@ -670,82 +681,84 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               dir="rtl"
               disabled={isLoading}
               placeholder="متن فارسی را اینجا بنویسید..."
-              className="min-h-0 flex-1 resize-none overflow-y-auto text-base leading-8 md:text-lg"
+              className="h-full min-h-0 resize-none overflow-y-auto [field-sizing:fixed] text-base leading-8 md:text-lg"
             />
-            <div className="flex shrink-0 items-center justify-between text-xs text-muted-foreground">
-              <span>برچسب‌ها را انگلیسی بگذارید: [excited] [very slow]</span>
-              <span>{remaining.toLocaleString("fa-IR")} نویسه مانده</span>
-            </div>
-            {status === "error" && !timeoutOpen ? (
-              <p
-                role="alert"
-                className="shrink-0 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                {error}
-              </p>
-            ) : null}
-            {isLoading ? (
-              <div className="shrink-0 space-y-3 rounded-xl border bg-muted/40 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground">
-                    در حال تولید فایل صوتی
-                  </span>
-                  <span className="tabular-nums text-muted-foreground">
-                    {formatPercent(generation.percent)}
-                  </span>
-                </div>
-                <div
-                  className="h-3 overflow-hidden rounded-full bg-background"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.floor(generation.percent)}
+            <div className="grid shrink-0 gap-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>برچسب‌ها را انگلیسی بگذارید: [excited] [very slow]</span>
+                <span>{remaining.toLocaleString("fa-IR")} نویسه مانده</span>
+              </div>
+              {status === "error" && !timeoutOpen ? (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
                 >
+                  {error}
+                </p>
+              ) : null}
+              {isLoading ? (
+                <div className="space-y-3 rounded-xl border bg-muted/40 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">
+                      در حال تولید فایل صوتی
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatPercent(generation.percent)}
+                    </span>
+                  </div>
                   <div
-                    className="h-full rounded-full bg-primary"
-                    style={{
-                      width: `${Math.min(100, generation.percent)}%`,
-                    }}
-                  />
+                    className="h-3 overflow-hidden rounded-full bg-background"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.floor(generation.percent)}
+                  >
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{
+                        width: `${Math.min(100, generation.percent)}%`,
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={restartSession}
+                  >
+                    <RotateCcw data-icon="inline-start" />
+                    ری استارت
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={restartSession}
-                >
-                  <RotateCcw data-icon="inline-start" />
-                  ری استارت
-                </Button>
-              </div>
-            ) : (
-              <div className="flex shrink-0 flex-col gap-2">
-                <Button
-                  size="lg"
-                  className="h-11 w-full text-base"
-                  onClick={() => void generateSpeech()}
-                  disabled={!canSpeak}
-                >
-                  <Volume2 data-icon="inline-start" />
-                  تولید فایل صوتی
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={restartSession}
-                >
-                  <RotateCcw data-icon="inline-start" />
-                  ری استارت
-                </Button>
-              </div>
-            )}
+              ) : (
+                <div className="grid gap-2">
+                  <Button
+                    size="lg"
+                    className="h-11 w-full text-base"
+                    onClick={() => void generateSpeech()}
+                    disabled={!canSpeak}
+                  >
+                    <Volume2 data-icon="inline-start" />
+                    تولید فایل صوتی
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={restartSession}
+                  >
+                    <RotateCcw data-icon="inline-start" />
+                    ری استارت
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <div className="flex min-h-0 flex-col gap-4 lg:h-full">
-          <Card className="min-h-0 flex-1 overflow-hidden">
-            <CardContent className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
+        <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden max-lg:h-auto">
+          <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
               <div className="grid gap-2">
                 <Label className="text-base">صدا</Label>
                 <VoiceTable
@@ -772,7 +785,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                       type="button"
                       onClick={() => handleStyleClick(item.id)}
                       className={cn(
-                        "rounded-xl border px-3 py-2 text-start transition-colors",
+                        "rounded-xl border px-2.5 py-1.5 text-start transition-colors",
                         style === item.id
                           ? "border-primary bg-accent text-foreground"
                           : "border-border bg-background hover:bg-muted",
@@ -791,7 +804,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             </CardContent>
           </Card>
 
-          <Card className="shrink-0">
+          <Card className="shrink-0" size="sm">
             <CardHeader>
               <CardTitle>پخش</CardTitle>
               <CardDescription>
