@@ -124,16 +124,6 @@
   html {
     @apply font-sans;
   }
-  button:not(:disabled),
-  [role="button"]:not([aria-disabled="true"]),
-  a[href],
-  summary,
-  label[for],
-  select:not(:disabled),
-  input[type="checkbox"]:not(:disabled),
-  input[type="radio"]:not(:disabled) {
-    cursor: pointer;
-  }
   body {
     @apply bg-background text-foreground;
     background-image:
@@ -142,4 +132,21 @@
       linear-gradient(180deg, oklch(0.98 0.01 85), oklch(0.96 0.015 80));
     background-attachment: fixed;
   }
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+summary,
+label[for],
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+[data-slot="button"]:not(:disabled) {
+  cursor: pointer !important;
+}
+
+button:disabled,
+[data-slot="button"]:disabled {
+  cursor: not-allowed !important;
 }
