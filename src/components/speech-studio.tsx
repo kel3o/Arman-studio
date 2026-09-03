@@ -771,7 +771,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
 
         <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden max-lg:h-auto">
           <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
               <div className="grid gap-2">
                 <Label className="text-base">صدا</Label>
                 <VoiceTable
