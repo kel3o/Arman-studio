@@ -1,3 +1,5 @@
+import { isSampleEditorText } from "@/lib/voices"
+
 export type ChatRecord = {
   id: string
   title: string
@@ -51,6 +53,7 @@ function idbRequest<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 export function titleFromText(text: string): string {
+  if (isSampleEditorText(text)) return "چت جدید"
   const line = text.trim().split(/\n+/)[0] ?? ""
   if (!line) return "چت جدید"
   return line.length > 40 ? `${line.slice(0, 40)}…` : line

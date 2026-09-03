@@ -36,10 +36,13 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  DEFAULT_EDITOR_TEXT,
   DEFAULT_VOICE,
   MAX_CUSTOM_STYLE_CHARS,
   MAX_TEXT_CHARS,
   STYLES,
+  isSampleEditorText,
+  speakableText,
   type StyleId,
 } from "@/lib/voices"
 import {
@@ -74,11 +77,6 @@ type SpeechStudioProps = {
   hasServerKey: boolean
 }
 
-function maskKey(key: string): string {
-  if (key.length < 8) return "ذخیره شده"
-  return `${key.slice(0, 4)}…${key.slice(-4)}`
-}
-
 function isStyleId(value: string): value is StyleId {
   return STYLES.some((item) => item.id === value)
 }
@@ -94,7 +92,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     getActiveChatIdSnapshot,
     getActiveChatIdServerSnapshot,
   )
-  const [text, setText] = useState("")
+  const [text, setText] = useState(DEFAULT_EDITOR_TEXT)
   const [voice, setVoice] = useState<string>(DEFAULT_VOICE)
   const [style, setStyle] = useState<StyleId>("natural")
   const [customStyle, setCustomStyle] = useState("")
@@ -129,19 +127,21 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   const [loadedChatId, setLoadedChatId] = useState("")
   const generation = useGenerationProgress()
 
-  const remaining = MAX_TEXT_CHARS - text.length
+  const spokenText = speakableText(text)
+  const remaining = MAX_TEXT_CHARS - spokenText.length
+  const isSampleText = isSampleEditorText(text)
   const isLoading =
     status === "loading" ||
     generation.phase === "running" ||
     generation.phase === "finishing"
-  const canSpeak = text.trim().length > 0 && !isLoading
+  const canSpeak = spokenText.trim().length > 0 && !isLoading
   const needsKey = !hasServerKey && !apiKey
   const canSeek = Boolean(audioUrl) && !isLoading && duration > 0
 
   const activeChat = chats.find((item) => item.id === activeId)
   if (activeChat && activeId !== loadedChatId) {
     setLoadedChatId(activeId)
-    setText(activeChat.text)
+    setText(activeChat.text || DEFAULT_EDITOR_TEXT)
     setVoice(activeChat.voice)
     setStyle(isStyleId(activeChat.style) ? activeChat.style : "natural")
     setCustomStyle(activeChat.customStyle ?? "")
@@ -268,7 +268,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     restartSession()
     const chat = await createChat()
     setLoadedChatId(chat.id)
-    setText("")
+    setText(DEFAULT_EDITOR_TEXT)
     setVoice(DEFAULT_VOICE)
     setStyle("natural")
     setCustomStyle("")
@@ -294,7 +294,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }
 
   async function generateSpeech() {
-    const trimmed = text.trim()
+    const trimmed = spokenText.trim()
     if (!trimmed) {
       setStatus("error")
       setError("متن فارسی را بنویسید تا خوانده شود.")
@@ -329,7 +329,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     setCurrentTime(0)
     setDuration(0)
     if (activeId) {
-      void updateChat(activeId, { text: trimmed, voice, style, customStyle })
+      void updateChat(activeId, { text, voice, style, customStyle })
     }
 
     generation.start({
@@ -466,12 +466,18 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   return (
     <div className="mx-auto flex h-dvh min-h-0 w-full flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4">
       <header className="shrink-0 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+        <div className="relative flex items-center justify-between gap-3">
+          <h1 className="pointer-events-none absolute inset-x-0 text-center font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             استدیو آرمان
           </h1>
+          <span
+            aria-hidden
+            className="invisible font-heading text-2xl font-semibold sm:text-3xl"
+          >
+            استدیو آرمان
+          </span>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="relative z-10 flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="lg"
@@ -492,14 +498,17 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               }}
             >
               <KeyRound data-icon="inline-start" />
-              {apiKey ? maskKey(apiKey) : "کلید API"}
+              {apiKey ? "مدیریت API" : "کلید API"}
             </Button>
           </div>
         </div>
         <p className="w-full max-w-none text-sm leading-7 text-muted-foreground sm:text-base">
-          متن فارسی را بنویسید تا مدل گفتار آن را با لهجهٔ ایرانی بخواند. برای
-          بهبود لحن می‌توانید از عبارت‌های انگلیسی مرتبط در پایان جملات استفاده
-          کنید. لیست این عبارت‌ها در{" "}
+          متن خودت را بنویسید تا مدل گفتار آن را با لهجهٔ ایرانی بخواند.
+          <br />
+          برای بهبود لحن (مثل خنده و ...) از عبارت‌های انگلیسی مرتبط در پایان
+          جملات استفاده کنید
+          <br />
+          لیست این عبارت‌ها در{" "}
           <Link
             href="/guide"
             className="text-foreground underline underline-offset-4"
@@ -562,7 +571,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             {keySuccess ? (
               <p
                 role="status"
-                className="flex items-center gap-2 rounded-lg border border-primary/20 bg-accent px-3 py-2 text-sm text-foreground"
+                className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
               >
                 <CheckCircle2 className="size-4 shrink-0" />
                 API با موفقیت ثبت شد
@@ -694,7 +703,10 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               dir="rtl"
               disabled={isLoading}
               placeholder="متن فارسی را اینجا بنویسید..."
-              className="h-full min-h-0 resize-none overflow-y-auto [field-sizing:fixed] text-base leading-8 md:text-lg"
+              className={cn(
+                "h-full min-h-0 resize-none overflow-y-auto [field-sizing:fixed] text-base leading-8 md:text-lg",
+                isSampleText && "text-neutral-500",
+              )}
             />
             <div className="grid shrink-0 gap-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">

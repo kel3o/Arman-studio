@@ -22,6 +22,9 @@ type VoiceTableProps = {
   onNeedKey: () => void
 }
 
+const VOICE_COLS =
+  "grid-cols-[minmax(0,1.15fr)_minmax(0,1.35fr)_minmax(0,0.7fr)_2.75rem]"
+
 export function VoiceTable({
   value,
   onChange,
@@ -174,18 +177,21 @@ export function VoiceTable({
           >
             <Popover.Popup
               dir="rtl"
-              className="min-w-[24rem] w-(--anchor-width) origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+              className="min-w-[28rem] w-(--anchor-width) origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
             >
               <div className="max-h-72 overflow-auto [scrollbar-gutter:stable]">
-                <div className="grid w-full grid-cols-3 text-sm">
-                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center font-medium text-muted-foreground backdrop-blur-sm">
+                <div className={cn("grid w-full", VOICE_COLS)}>
+                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
                     اسم
                   </div>
-                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center font-medium text-muted-foreground backdrop-blur-sm">
+                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
                     حس صدا
                   </div>
-                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center font-medium text-muted-foreground backdrop-blur-sm">
+                  <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
                     جنسیت
+                  </div>
+                  <div className="sticky top-0 z-10 bg-muted px-1 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
+                    تست
                   </div>
                   {VOICE_GROUPS.map((group) => {
                     const voices = VOICES.filter((item) => item.group === group)
@@ -242,7 +248,7 @@ function VoiceGroup({
 }) {
   return (
     <>
-      <div className="col-span-3 bg-muted/70 px-2 py-1.5 text-center text-xs font-bold text-foreground">
+      <div className="col-span-4 bg-accent px-2 py-1.5 text-center text-[11px] font-bold text-accent-foreground">
         {group}
       </div>
       {voices.map((voice, index) => (
@@ -281,17 +287,19 @@ function VoiceRow({
   onSelect: () => void
   onPreview: () => void
 }) {
-  const rowClass = cn(
-    "flex cursor-pointer items-center justify-center border-b border-border/70 px-1.5 py-1.5 text-center",
-    zebra && !selected && "bg-muted/40",
-    selected && "bg-primary/12",
-    !selected && "hover:bg-primary/8",
-    disabled && "pointer-events-none opacity-60",
-  )
-
   return (
-    <>
-      <div className={rowClass} onClick={onSelect}>
+    <div
+      className={cn(
+        "col-span-4 grid cursor-pointer border-b border-border/70 transition-colors",
+        VOICE_COLS,
+        zebra && !selected && "bg-muted/40",
+        selected && "bg-primary/12",
+        !selected && "hover:bg-primary/14",
+        disabled && "pointer-events-none opacity-60",
+      )}
+      onClick={onSelect}
+    >
+      <div className="flex items-center justify-center px-1.5 py-1.5 text-center">
         <span className="flex w-full min-w-0 items-center justify-center gap-1">
           {selected ? (
             <Check className="size-3.5 shrink-0 text-primary" />
@@ -299,39 +307,41 @@ function VoiceRow({
             <span className="size-3.5 shrink-0" />
           )}
           <span className="truncate text-xs font-medium">{voice.name}</span>
-          <button
-            type="button"
-            className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground hover:bg-background/80"
-            aria-label={
-              loading
-                ? `در حال آماده کردن صدای ${voice.name}`
-                : playing
-                  ? `توقف نمونهٔ ${voice.name}`
-                  : `پخش نمونهٔ ${voice.name}`
-            }
-            disabled={disabled}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onPreview()
-            }}
-          >
-            {loading ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : playing ? (
-              <Pause className="size-3.5" />
-            ) : (
-              <Play className="size-3.5" />
-            )}
-          </button>
         </span>
       </div>
-      <div className={cn(rowClass, "truncate text-muted-foreground")} onClick={onSelect}>
+      <div className="truncate px-1.5 py-1.5 text-center text-[11px] text-muted-foreground">
         {voice.mood}
       </div>
-      <div className={cn(rowClass, "text-muted-foreground")} onClick={onSelect}>
+      <div className="px-1.5 py-1.5 text-center text-[11px] text-muted-foreground">
         {voice.gender}
       </div>
-    </>
+      <div className="flex items-center justify-center px-0.5 py-1.5">
+        <button
+          type="button"
+          className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground hover:bg-background/80"
+          aria-label={
+            loading
+              ? `در حال آماده کردن صدای ${voice.name}`
+              : playing
+                ? `توقف نمونهٔ ${voice.name}`
+                : `پخش نمونهٔ ${voice.name}`
+          }
+          disabled={disabled}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onPreview()
+          }}
+        >
+          {loading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : playing ? (
+            <Pause className="size-3.5" />
+          ) : (
+            <Play className="size-3.5" />
+          )}
+        </button>
+      </div>
+    </div>
   )
 }

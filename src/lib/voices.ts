@@ -98,3 +98,21 @@ export const MAX_TEXT_CHARS = 10_000
 export const MAX_CUSTOM_STYLE_CHARS = 100
 export const VOICE_PREVIEW_TEXT =
   "سلام دوستِ خوبِ آرمان. من اینجام تا متن تو رو با صدای زیبای خودم بخونم [laughs]"
+export const SAMPLE_HINT_TEXT =
+  "جهت راهنمایی استفاده از برچسب‌های لحن صدا، بخش راهنما را مطالعه کنید."
+export const DEFAULT_EDITOR_TEXT = `${VOICE_PREVIEW_TEXT}\n${SAMPLE_HINT_TEXT}`
+
+export function speakableText(value: string): string {
+  const lines = value.replace(/\s+$/, "").split("\n")
+  if (lines.at(-1)?.trim() === SAMPLE_HINT_TEXT) {
+    return lines.slice(0, -1).join("\n").trimEnd()
+  }
+  return value
+}
+
+export function isSampleEditorText(value: string): boolean {
+  const trimmed = value.trim()
+  return (
+    trimmed === DEFAULT_EDITOR_TEXT.trim() || trimmed === VOICE_PREVIEW_TEXT
+  )
+}
