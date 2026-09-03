@@ -814,109 +814,107 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                   ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          <Card className="shrink-0" size="sm">
-            <CardHeader>
-              <CardTitle>پخش</CardTitle>
-              <CardDescription>
-                {isLoading
-                  ? `تولید فایل صوتی · ${formatPercent(generation.percent)}`
-                  : audioUrl
-                    ? "آمادهٔ پخش و دانلود."
-                    : "هنوز صدایی ساخته نشده."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <audio
-                ref={audioRef}
-                src={audioUrl ?? undefined}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => {
-                  setIsPlaying(false)
-                  setCurrentTime(0)
-                }}
-                onCanPlay={() => {
-                  if (!autoplayRef.current) return
-                  autoplayRef.current = false
-                  playAudio()
-                }}
-                onLoadedMetadata={(event) => {
-                  const nextDuration = event.currentTarget.duration || 0
-                  setDuration(nextDuration)
-                  const chatId = activeIdRef.current
-                  if (chatId && nextDuration) {
-                    void updateChat(chatId, { duration: nextDuration })
-                  }
-                }}
-                onTimeUpdate={(event) => {
-                  setCurrentTime(event.currentTarget.currentTime || 0)
-                }}
-              />
-              <div className="flex min-w-0 flex-col gap-2" dir="ltr">
-                <Slider
-                  min={0}
-                  max={Math.max(duration, 0.1)}
-                  step={0.1}
-                  disabled={!canSeek}
-                  value={[currentTime]}
-                  onValueChange={(value) => {
-                    const next = Array.isArray(value) ? value[0] : value
-                    seekTo(Number(next) || 0)
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base">پخش</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {isLoading
+                      ? `تولید فایل صوتی · ${formatPercent(generation.percent)}`
+                      : audioUrl
+                        ? "آمادهٔ پخش و دانلود."
+                        : "هنوز صدایی ساخته نشده."}
+                  </span>
+                </div>
+                <audio
+                  ref={audioRef}
+                  src={audioUrl ?? undefined}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => {
+                    setIsPlaying(false)
+                    setCurrentTime(0)
+                  }}
+                  onCanPlay={() => {
+                    if (!autoplayRef.current) return
+                    autoplayRef.current = false
+                    playAudio()
+                  }}
+                  onLoadedMetadata={(event) => {
+                    const nextDuration = event.currentTarget.duration || 0
+                    setDuration(nextDuration)
+                    const chatId = activeIdRef.current
+                    if (chatId && nextDuration) {
+                      void updateChat(chatId, { duration: nextDuration })
+                    }
+                  }}
+                  onTimeUpdate={(event) => {
+                    setCurrentTime(event.currentTarget.currentTime || 0)
                   }}
                 />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
+                <div className="flex min-w-0 flex-col gap-1.5" dir="ltr">
+                  <Slider
+                    min={0}
+                    max={Math.max(duration, 0.1)}
+                    step={0.1}
+                    disabled={!canSeek}
+                    value={[currentTime]}
+                    onValueChange={(value) => {
+                      const next = Array.isArray(value) ? value[0] : value
+                      seekTo(Number(next) || 0)
+                    }}
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 min-w-0 px-1.5 text-xs"
-                  disabled={!canSeek}
-                  onClick={() => skip(-10)}
-                >
-                  ۱۰ ثانیه عقب
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 min-w-0 px-1.5"
-                  onClick={togglePlayback}
-                  disabled={!audioUrl || isLoading}
-                  aria-label={isPlaying ? "توقف" : "پخش"}
-                >
-                  {isPlaying ? <Pause /> : <Play />}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 min-w-0 px-1.5 text-xs"
-                  disabled={!canSeek}
-                  onClick={() => skip(10)}
-                >
-                  ۱۰ ثانیه جلو
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 min-w-0 px-1.5 text-xs"
-                  disabled={!audioUrl || isLoading}
-                  onClick={() => {
-                    if (!audioUrl) return
-                    const link = document.createElement("a")
-                    link.href = audioUrl
-                    link.download = "persian-speech.wav"
-                    link.click()
-                  }}
-                >
-                  <Download data-icon="inline-start" />
-                  دانلود
-                </Button>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 min-w-0 px-1.5 text-xs"
+                    disabled={!canSeek}
+                    onClick={() => skip(-10)}
+                  >
+                    ۱۰ ثانیه عقب
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 min-w-0 px-1.5"
+                    onClick={togglePlayback}
+                    disabled={!audioUrl || isLoading}
+                    aria-label={isPlaying ? "توقف" : "پخش"}
+                  >
+                    {isPlaying ? <Pause /> : <Play />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 min-w-0 px-1.5 text-xs"
+                    disabled={!canSeek}
+                    onClick={() => skip(10)}
+                  >
+                    ۱۰ ثانیه جلو
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 min-w-0 px-1.5 text-xs"
+                    disabled={!audioUrl || isLoading}
+                    onClick={() => {
+                      if (!audioUrl) return
+                      const link = document.createElement("a")
+                      link.href = audioUrl
+                      link.download = "persian-speech.wav"
+                      link.click()
+                    }}
+                  >
+                    <Download data-icon="inline-start" />
+                    دانلود
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
