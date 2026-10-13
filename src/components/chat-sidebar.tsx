@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Check, Pencil, MessageSquarePlus, Trash2, Volume2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { type ChatRecord } from "@/lib/chat-store"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 type ChatSidebarProps = {
@@ -27,8 +28,14 @@ export function ChatSidebar({
   onDelete,
   onRename,
 }: ChatSidebarProps) {
+  const { t, locale } = useI18n()
+  const [mounted, setMounted] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState("")
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   function startRename(chat: ChatRecord) {
     setEditingId(chat.id)
@@ -51,9 +58,9 @@ export function ChatSidebar({
     <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card/90 shadow-sm max-lg:h-64">
       <div className="flex items-center justify-between gap-2 border-b p-3">
         <div>
-          <div className="text-sm font-medium">تاریخچه</div>
+          <div className="text-sm font-medium">{t("chats.title")}</div>
           <div className="text-xs text-muted-foreground">
-            چت‌ها و فایل‌های ساخته‌شده
+            {t("chats.subtitle")}
           </div>
         </div>
         <Button
@@ -62,13 +69,13 @@ export function ChatSidebar({
           disabled={disabled}
         >
           <MessageSquarePlus data-icon="inline-start" />
-          چت جدید
+          {t("chats.new")}
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
         {chats.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            هنوز چتی ساخته نشده.
+            {t("chats.empty")}
           </p>
         ) : (
           chats.map((chat) => {
@@ -139,15 +146,19 @@ export function ChatSidebar({
                       </div>
                       <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                         <span>
-                          {new Date(chat.updatedAt).toLocaleDateString("fa-IR")}
+                          {mounted
+                            ? new Date(chat.updatedAt).toLocaleDateString(
+                                locale === "en" ? "en-US" : "fa-IR",
+                              )
+                            : ""}
                         </span>
                         {chat.hasAudio ? (
                           <span className="inline-flex items-center gap-1">
                             <Volume2 className="size-3" />
-                            فایل آماده
+                            {t("chats.hasAudio")}
                           </span>
                         ) : (
-                          <span>بدون صدا</span>
+                          <span>{t("chats.noAudio")}</span>
                         )}
                       </div>
                     </button>

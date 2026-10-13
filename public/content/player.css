@@ -1,0 +1,187 @@
+#persian-studio-host {
+  all: initial;
+}
+
+.ps-root {
+  font-family: Tahoma, "Segoe UI", Vazirmatn, sans-serif;
+  color: #f4f4f5;
+}
+
+.ps-panel {
+  position: fixed;
+  z-index: 2147483646;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  border-radius: 16px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  background: rgb(28 28 28 / 96%);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 35%);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.ps-root[data-theme="light"] .ps-panel {
+  color: #2d2418;
+  border-color: rgb(45 36 24 / 12%);
+  background: rgb(255 252 246 / 96%);
+}
+
+.ps-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.ps-root[data-theme="light"] .ps-head {
+  border-bottom-color: rgb(45 36 24 / 10%);
+}
+
+.ps-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ps-icon-btn,
+.ps-btn {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ps-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+
+.ps-icon-btn:hover,
+.ps-btn:hover {
+  filter: brightness(1.08);
+}
+
+.ps-body {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.ps-btn {
+  width: 100%;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ps-btn-primary {
+  background: #ececec;
+  color: #171717;
+}
+
+.ps-root[data-theme="light"] .ps-btn-primary {
+  background: #2f7a7a;
+  color: #fff;
+}
+
+.ps-btn-outline {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgb(255 255 255 / 16%);
+}
+
+.ps-root[data-theme="light"] .ps-btn-outline {
+  border-color: rgb(45 36 24 / 16%);
+}
+
+.ps-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ps-status {
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+.ps-error {
+  color: #f87171;
+}
+
+.ps-chip {
+  position: fixed;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  background: rgb(28 28 28 / 94%);
+  color: #f4f4f5;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ps-root[data-theme="light"] .ps-chip {
+  color: #2d2418;
+  background: rgb(255 252 246 / 94%);
+  border-color: rgb(45 36 24 / 12%);
+}
+
+.ps-caption {
+  position: fixed;
+  z-index: 2147483645;
+  max-width: min(90vw, 820px);
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 72%);
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.ps-caption-fa {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.7;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+}
+
+.ps-caption-src {
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
+.ps-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+}
+
+.ps-progress > span {
+  display: block;
+  height: 100%;
+  background: #ececec;
+}
+
+.ps-root[data-theme="light"] .ps-progress > span {
+  background: #2f7a7a;
+}
+
+.ytp-caption-window-container.ps-hide-native {
+  display: none !important;
+}

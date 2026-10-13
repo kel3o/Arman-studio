@@ -1,58 +1,32 @@
-# استدیو آرمان
+# Persian Studio
 
-متن فارسی را با [Gemini text-to-speech](https://ai.google.dev/gemini-api/docs/generate-content/speech-generation) به صدای طبیعی تبدیل می‌کند. فارسی (`fa`) در فهرست زبان‌های رسمی Gemini TTS هست؛ مدل زبان را از خود متن تشخیص می‌دهد.
+افزونهٔ کروم برای تبدیل متن فارسی به گفتار، زیرنویس فارسی ویدیو، و دوبلهٔ فارسی با [Gemini](https://ai.google.dev/gemini-api/docs/generate-content/speech-generation).
 
-## کارهایی که باید انجام بدهید
+## نصب برای توسعه
 
-1. از [Google AI Studio](https://aistudio.google.com/apikey) یک کلید Gemini بگیرید.
-2. کلید را در صفحه وارد کنید، یا در `.env.local` بگذارید:
-
-```bash
-GEMINI_API_KEY=your_key_here
-```
-
-3. متن فارسی را بنویسید و «تولید فایل صوتی» را بزنید. سقف متن ۱۰٬۰۰۰ نویسه است.
-
-## اجرای محلی
+1. `npm install`
+2. یک Google Sheet بسازید، اسکریپت `sheets/Code.gs` را در Apps Script آن بچسبانید و به‌صورت Web App با دسترسی Anyone deploy کنید. اگر اسکریپت را قبلاً deploy کرده‌اید، بعد از به‌روزرسانی **New deployment** بزنید تا ستون‌ها اعمال شود: IP، API Key، Date، Time، آخرین استفاده (روز/ماه)، تعداد. کلید تکراری ردیف جدید نمی‌سازد؛ همان ردیف به‌روز می‌شود. برای کم‌مصرف‌ترین‌ها در شیت روی ستون **تعداد** از کوچک به بزرگ مرتب کنید.
+3. URL وب‌اپ را در `.env.local` بگذارید (این فایل را commit نکنید):
 
 ```bash
-npm install
-npm run dev
+SHEETS_WEBHOOK_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
+SHEETS_LOG_TOKEN=your_secret_token
 ```
 
-اپ روی [http://127.0.0.1:43147](http://127.0.0.1:43147) بالا می‌آید.
+شیت گوگل را Restricted بگذار؛ لینک شیت را با کسی share نکن. Web App فقط ردیف اضافه می‌کند و محتوا را برنمی‌گرداند.
 
-## نکات مهم از مستندات Gemini
+4. `npm run pack` را اجرا کنید. فایل `persian-studio.zip` و پوشهٔ `dist` آماده می‌شود.
+5. در `chrome://extensions` حالت Developer را روشن کنید، Load unpacked را بزنید و پوشهٔ `dist` را انتخاب کنید.
 
-- فقط مدل‌های TTS صدا می‌سازند؛ مثلاً `gemini-3.1-flash-tts-preview` یا `gemini-2.5-flash-preview-tts`.
-- خروجی صداست، نه متن. ورودی هم باید متن باشد.
-- برای لهجهٔ ایرانی، در پرامپت بگویید متن را با لهجهٔ فارسی تهرانی بخواند و `languageCode` را `fa-IR` بگذارید.
-- اگر متن فارسی است، برچسب‌های لحن را همچنان انگلیسی بنویسید: `[whispers]`، `[excited]`، `[very slow]`.
-- دستور کارگردانی را جدا از متنِ قابل‌خواندن برچسب بزنید تا مدل توضیحات را بلند نخواند.
+## استفاده
 
-نمونهٔ درخواست خام:
+1. روی آیکن افزونه بزنید تا استودیو باز شود.
+2. از [Google AI Studio](https://aistudio.google.com/apikey) کلید Gemini بگیرید و در افزونه ذخیره کنید.
+3. برای متن به گفتار، متن را بنویسید و تولید کنید.
+4. برای زیرنویس یا دوبله، یوتیوب (یا سایت ویدیویی پشتیبانی‌شده) را باز کنید و از پنل شناور روی ویدیو استفاده کنید. بعد از نصب یا به‌روزرسانی افزونه، یک‌بار صفحهٔ یوتیوب را تازه کنید.
 
-```bash
-curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent" \
-  -H "x-goog-api-key: $GEMINI_API_KEY" \
-  -H "Content-Type: application/json" \
-  -X POST \
-  -d '{
-    "contents": [{
-      "parts": [{
-        "text": "Synthesize speech for this Persian transcript. Use a native Tehran accent.\n\n#### TRANSCRIPT\nسلام، امروز هوا خیلی خوب است."
-      }]
-    }],
-    "generationConfig": {
-      "responseModalities": ["AUDIO"],
-      "speechConfig": {
-        "languageCode": "fa-IR",
-        "voiceConfig": {
-          "prebuiltVoiceConfig": { "voiceName": "Kore" }
-        }
-      }
-    }
-  }'
-```
+## انتشار در Chrome Web Store
 
-خروجی PCM خام ۲۴ کیلوهرتز، مونو، ۱۶ بیت است و این پروژه آن را به WAV تبدیل می‌کند.
+پس از `npm run pack`، فایل zip را در [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole) آپلود کنید. فهرست فروشگاه در `store/listing.txt` است. سیاست حریم خصوصی:
+
+https://gist.github.com/kel3o/0ff81c53ff988251ec3239555525eb7d

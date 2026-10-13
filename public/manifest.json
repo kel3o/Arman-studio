@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "Persian Studio",
+  "short_name": "Persian Studio",
+  "version": "2.0.0",
+  "description": "Persian text-to-speech, YouTube subtitles, and Persian dubbing with your Gemini API key.",
+  "homepage_url": "https://github.com/kel3o/Arman-studio",
+  "action": {
+    "default_title": "Persian Studio",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "unlimitedStorage",
+    "storage",
+    "tabCapture",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*",
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*",
+    "https://api.ipify.org/*",
+    "https://api64.ipify.org/*",
+    "*://*.youtube.com/*",
+    "*://*.youtube-nocookie.com/*",
+    "*://*.youtu.be/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.youtube-nocookie.com/*",
+        "*://*.youtu.be/*",
+        "*://*.vimeo.com/*",
+        "*://*.aparat.com/*",
+        "*://*.twitch.tv/*",
+        "*://*.netflix.com/*"
+      ],
+      "js": ["content/player.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/player.css"],
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.youtube-nocookie.com/*",
+        "*://*.youtu.be/*",
+        "*://*.vimeo.com/*",
+        "*://*.aparat.com/*",
+        "*://*.twitch.tv/*",
+        "*://*.netflix.com/*"
+      ]
+    }
+  ]
+}

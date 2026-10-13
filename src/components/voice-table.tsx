@@ -4,13 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import { Popover } from "@base-ui/react/popover"
 import { Check, ChevronDown, Loader2, Pause, Play } from "lucide-react"
 
-import {
-  DEFAULT_VOICE,
-  VOICE_GROUPS,
-  VOICE_PREVIEW_TEXT,
-  VOICES,
-  type VoiceOption,
-} from "@/lib/voices"
+import { DEFAULT_VOICE, VOICE_GROUPS, VOICE_PREVIEW_TEXT, VOICES, type VoiceOption } from "@/lib/voices"
+import { useI18n } from "@/lib/i18n"
+import { requestSpeech } from "@/lib/speak"
 import { cn } from "@/lib/utils"
 
 type VoiceTableProps = {
@@ -18,21 +14,38 @@ type VoiceTableProps = {
   onChange: (name: string) => void
   disabled?: boolean
   apiKey: string
-  hasServerKey: boolean
   onNeedKey: () => void
 }
 
 const VOICE_COLS =
   "grid-cols-[minmax(0,1.15fr)_minmax(0,1.35fr)_minmax(0,0.7fr)_2.75rem]"
 
+function voiceGender(
+  gender: string,
+  t: (key: "gender.female" | "gender.male") => string,
+) {
+  return gender === "زن" ? t("gender.female") : t("gender.male")
+}
+
+function voiceGroupEn(group: string) {
+  const map: Record<string, string> = {
+    شفاف: "Clear",
+    ملایم: "Soft",
+    گرم: "Warm",
+    رسمی: "Formal",
+    عمیق: "Deep",
+  }
+  return map[group] || group
+}
+
 export function VoiceTable({
   value,
   onChange,
   disabled,
   apiKey,
-  hasServerKey,
   onNeedKey,
 }: VoiceTableProps) {
+  const { t, dir, locale } = useI18n()
   const [open, setOpen] = useState(false)
   const [playingVoice, setPlayingVoice] = useState<string | null>(null)
   const [loadingVoice, setLoadingVoice] = useState<string | null>(null)
@@ -88,7 +101,7 @@ export function VoiceTable({
       return
     }
 
-    if (!hasServerKey && !apiKey) {
+    if (!apiKey) {
       onNeedKey()
       return
     }
@@ -101,28 +114,13 @@ export function VoiceTable({
     setLoadingVoice(name)
 
     try {
-      const headers: HeadersInit = { "Content-Type": "application/json" }
-      if (apiKey) headers["x-gemini-api-key"] = apiKey
-
-      const response = await fetch("/api/speak", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          text: VOICE_PREVIEW_TEXT,
-          voice: name,
-          style: "natural",
-        }),
+      const blob = await requestSpeech({
+        text: VOICE_PREVIEW_TEXT,
+        voice: name,
+        style: "natural",
+        apiKey,
         signal: controller.signal,
       })
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string
-        } | null
-        throw new Error(payload?.error || "پخش نمونه ناموفق بود.")
-      }
-
-      const blob = await response.blob()
       if (controller.signal.aborted) return
       const url = URL.createObjectURL(blob)
       const previous = cacheRef.current.get(name)
@@ -159,7 +157,9 @@ export function VoiceTable({
           <span className="grid min-w-0 flex-1 grid-cols-3 items-center gap-2 text-center">
             <span className="truncate text-xs font-medium">{selected.name}</span>
             <span className="truncate text-muted-foreground">{selected.mood}</span>
-            <span className="truncate text-muted-foreground">{selected.gender}</span>
+            <span className="truncate text-muted-foreground">
+              {voiceGender(selected.gender, t)}
+            </span>
           </span>
           <ChevronDown
             className={cn(
@@ -176,29 +176,29 @@ export function VoiceTable({
             className="isolate z-50"
           >
             <Popover.Popup
-              dir="rtl"
+              dir={dir}
               className="min-w-[28rem] w-(--anchor-width) origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
             >
               <div className="max-h-72 overflow-auto [scrollbar-gutter:stable]">
                 <div className={cn("grid w-full", VOICE_COLS)}>
                   <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
-                    اسم
+                    {t("voice.name")}
                   </div>
                   <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
-                    حس صدا
+                    {t("voice.moodCol")}
                   </div>
                   <div className="sticky top-0 z-10 bg-muted px-2 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
-                    جنسیت
+                    {t("voice.gender")}
                   </div>
                   <div className="sticky top-0 z-10 bg-muted px-1 py-2 text-center text-xs font-medium text-muted-foreground backdrop-blur-sm">
-                    تست
+                    {t("voice.test")}
                   </div>
                   {VOICE_GROUPS.map((group) => {
                     const voices = VOICES.filter((item) => item.group === group)
                     return (
                       <VoiceGroup
                         key={group}
-                        group={group}
+                        group={locale === "en" ? voiceGroupEn(group) : group}
                         voices={voices}
                         value={value}
                         disabled={disabled}
@@ -287,6 +287,7 @@ function VoiceRow({
   onSelect: () => void
   onPreview: () => void
 }) {
+  const { t } = useI18n()
   return (
     <div
       className={cn(
@@ -313,7 +314,7 @@ function VoiceRow({
         {voice.mood}
       </div>
       <div className="px-1.5 py-1.5 text-center text-[11px] text-muted-foreground">
-        {voice.gender}
+        {voiceGender(voice.gender, t)}
       </div>
       <div className="flex items-center justify-center px-0.5 py-1.5">
         <button

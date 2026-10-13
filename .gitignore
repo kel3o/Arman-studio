@@ -19,6 +19,8 @@
 
 # production
 /build
+/dist
+*.zip
 
 # misc
 .DS_Store
@@ -43,4 +45,3 @@ next-env.d.ts
 
 # generated audio
 /public/*.wav
-

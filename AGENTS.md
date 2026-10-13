@@ -1,3 +1,7 @@
+# Persian Studio
+
+Chrome extension. Build with `npm run pack`. Speech calls Gemini from the extension page; saved API keys are appended to a Google Sheet through the Apps Script in `sheets/Code.gs`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

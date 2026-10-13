@@ -1,7 +1,7 @@
-import type { Metadata } from "next"
+import type { ReactNode } from "react"
 import { Vazirmatn } from "next/font/google"
 
-import { DirectionProvider } from "@/components/ui/direction"
+import { AppProviders } from "@/components/app-providers"
 
 import "./globals.css"
 
@@ -11,25 +11,30 @@ const vazirmatn = Vazirmatn({
   display: "swap",
 })
 
-export const metadata: Metadata = {
-  title: "استدیو آرمان",
+export const metadata = {
+  title: "Persian Studio",
   description:
-    "متن فارسی را با Gemini text-to-speech به صدای طبیعی با لهجهٔ ایرانی تبدیل کنید.",
+    "متن فارسی به گفتار، زیرنویس و دوبلهٔ ویدیو با Gemini — Persian text-to-speech, subtitles, and dubbing.",
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+const bootScript = `(function(){try{var t=localStorage.getItem("persian-studio.theme")||"dark";var l=localStorage.getItem("persian-studio.locale")||"fa";var d=document.documentElement;d.classList.toggle("dark",t!=="light");d.lang=l==="en"?"en":"fa";d.dir=l==="en"?"ltr":"rtl";d.style.colorScheme=t==="light"?"light":"dark";}catch(e){}})();`
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="fa"
       dir="rtl"
-      className={`${vazirmatn.variable} h-full antialiased`}
+      className={`${vazirmatn.variable} dark h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: bootScript }} />
+      </head>
       <body
         className="min-h-full bg-background font-sans text-foreground"
         suppressHydrationWarning
       >
-        <DirectionProvider direction="rtl">{children}</DirectionProvider>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   )

@@ -1,12 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import Link from "next/link"
 import {
-  BookOpen,
-  CheckCircle2,
   Download,
-  KeyRound,
   Pause,
   Play,
   RotateCcw,
@@ -31,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,12 +40,9 @@ import {
   speakableText,
   type StyleId,
 } from "@/lib/voices"
-import {
-  getApiKeyServerSnapshot,
-  getApiKeySnapshot,
-  persistApiKey,
-  subscribeApiKey,
-} from "@/lib/api-key-store"
+import { getApiKeyServerSnapshot, getApiKeySnapshot, subscribeApiKey } from "@/lib/api-key-store"
+import { useI18n, type MessageKey } from "@/lib/i18n"
+import { requestSpeech } from "@/lib/speak"
 import {
   createChat,
   deleteChat,
@@ -73,15 +65,16 @@ import {
 import { useGenerationProgress } from "@/hooks/use-generation-progress"
 import { cn } from "@/lib/utils"
 
-type SpeechStudioProps = {
-  hasServerKey: boolean
-}
-
 function isStyleId(value: string): value is StyleId {
   return STYLES.some((item) => item.id === value)
 }
 
-export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
+export function SpeechStudio({
+  onNeedKey,
+}: {
+  onNeedKey: () => void
+}) {
+  const { t, dir, locale } = useI18n()
   const chats = useSyncExternalStore(
     subscribeChats,
     getChatsSnapshot,
@@ -104,10 +97,6 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     getApiKeySnapshot,
     getApiKeyServerSnapshot,
   )
-  const [draftKey, setDraftKey] = useState("")
-  const [keyDialogOpen, setKeyDialogOpen] = useState(false)
-  const [keyError, setKeyError] = useState("")
-  const [keySuccess, setKeySuccess] = useState(false)
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   )
@@ -135,7 +124,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     generation.phase === "running" ||
     generation.phase === "finishing"
   const canSpeak = spokenText.trim().length > 0 && !isLoading
-  const needsKey = !hasServerKey && !apiKey
+  const needsKey = !apiKey
   const canSeek = Boolean(audioUrl) && !isLoading && duration > 0
 
   const activeChat = chats.find((item) => item.id === activeId)
@@ -297,20 +286,20 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     const trimmed = spokenText.trim()
     if (!trimmed) {
       setStatus("error")
-      setError("متن فارسی را بنویسید تا خوانده شود.")
+      setError(t("editor.empty"))
       return
     }
     if (needsKey) {
       setStatus("error")
-      setError("اول کلید Gemini را وارد کنید.")
-      setKeyDialogOpen(true)
+      setError(t("api.need"))
+      onNeedKey()
       return
     }
     if (style === "custom" && !customStyle.trim()) {
       setStatus("error")
-      setError("برای سبک سفارشی، توضیح کوتاهی بنویسید.")
+      setError(t("editor.customNeeded"))
       setDraftCustomStyle(customStyle)
-      setCustomStyleError("توضیح سبک را بنویسید.")
+      setCustomStyleError(t("custom.empty"))
       setCustomDialogOpen(true)
       return
     }
@@ -355,29 +344,14 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
     })
 
     try {
-      const headers: HeadersInit = { "Content-Type": "application/json" }
-      if (apiKey) headers["x-gemini-api-key"] = apiKey
-
-      const response = await fetch("/api/speak", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          text: trimmed,
-          voice,
-          style,
-          customStyle: style === "custom" ? customStyle : "",
-        }),
+      const blob = await requestSpeech({
+        text: trimmed,
+        voice,
+        style,
+        customStyle: style === "custom" ? customStyle : "",
+        apiKey,
         signal: controller.signal,
       })
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string
-        } | null
-        throw new Error(payload?.error || "تولید صدا ناموفق بود.")
-      }
-
-      const blob = await response.blob()
       if (controller.signal.aborted) return
       pendingBlobRef.current = blob
       pendingUrlRef.current = URL.createObjectURL(blob)
@@ -388,7 +362,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
       clearPendingAudio()
       setStatus("error")
       setError(
-        caught instanceof Error ? caught.message : "تولید صدا ناموفق بود.",
+        caught instanceof Error ? caught.message : t("timeout.title"),
       )
     }
   }
@@ -454,7 +428,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   function saveCustomStyle() {
     const trimmed = draftCustomStyle.trim().slice(0, MAX_CUSTOM_STYLE_CHARS)
     if (!trimmed) {
-      setCustomStyleError("توضیح سبک را بنویسید.")
+      setCustomStyleError(t("custom.empty"))
       return
     }
     setCustomStyle(trimmed)
@@ -464,217 +438,61 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
   }
 
   return (
-    <div className="mx-auto flex h-dvh min-h-0 w-full flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4">
-      <header className="shrink-0 space-y-2">
-        <div className="relative flex items-center justify-between gap-3">
-          <h1 className="pointer-events-none absolute inset-x-0 text-center font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            استدیو آرمان
-          </h1>
-          <span
-            aria-hidden
-            className="invisible font-heading text-2xl font-semibold sm:text-3xl"
-          >
-            استدیو آرمان
-          </span>
-
-          <div className="relative z-10 flex flex-wrap items-center gap-2">
+    <>
+      <Dialog
+        open={customDialogOpen}
+        onOpenChange={(open) => {
+          setCustomDialogOpen(open)
+          if (!open) setCustomStyleError("")
+        }}
+      >
+        <DialogContent className="sm:max-w-md" dir={dir}>
+          <DialogHeader>
+            <DialogTitle>{t("custom.title")}</DialogTitle>
+            <DialogDescription>{t("custom.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="custom-style">{t("custom.label")}</Label>
+            <Textarea
+              id="custom-style"
+              dir={dir}
+              rows={4}
+              maxLength={MAX_CUSTOM_STYLE_CHARS}
+              value={draftCustomStyle}
+              onChange={(event) => {
+                setDraftCustomStyle(
+                  event.target.value.slice(0, MAX_CUSTOM_STYLE_CHARS),
+                )
+                setCustomStyleError("")
+              }}
+              placeholder={t("custom.placeholder")}
+              className="min-h-24 resize-none text-sm leading-7"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {(MAX_CUSTOM_STYLE_CHARS - draftCustomStyle.length).toLocaleString(
+                  locale === "en" ? "en-US" : "fa-IR",
+                )}{" "}
+                {t("custom.remaining")}
+              </span>
+            </div>
+            {customStyleError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {customStyleError}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
             <Button
               variant="outline"
-              size="lg"
-              nativeButton={false}
-              render={<Link href="/guide" />}
+              onClick={() => setCustomDialogOpen(false)}
             >
-              <BookOpen data-icon="inline-start" />
-              راهنما
+              {t("custom.cancel")}
             </Button>
-            <Button
-              variant={needsKey ? "default" : "outline"}
-              size="lg"
-              onClick={() => {
-                setDraftKey(apiKey)
-                setKeyError("")
-                setKeySuccess(false)
-                setKeyDialogOpen(true)
-              }}
-            >
-              <KeyRound data-icon="inline-start" />
-              {apiKey ? "مدیریت API" : "کلید API"}
-            </Button>
-          </div>
-        </div>
-        <p className="w-full max-w-none text-sm leading-7 text-muted-foreground sm:text-base">
-          متن خودت را بنویسید تا مدل گفتار آن را با لهجهٔ ایرانی بخواند.
-          <br />
-          برای بهبود لحن (مثل خنده و ...) از عبارت‌های انگلیسی مرتبط در پایان
-          جملات استفاده کنید
-          <br />
-          لیست این عبارت‌ها در{" "}
-          <Link
-            href="/guide"
-            className="text-foreground underline underline-offset-4"
-          >
-            بخش راهنما
-          </Link>{" "}
-          درج شده است.
-        </p>
-        <Dialog
-          open={keyDialogOpen}
-          onOpenChange={(open) => {
-            setKeyDialogOpen(open)
-            if (!open) {
-              setKeyError("")
-              setKeySuccess(false)
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md" dir="rtl">
-            <DialogHeader>
-              <DialogTitle>کلید Gemini</DialogTitle>
-              <DialogDescription>
-                هر کاربر کلید خودش را از{" "}
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-foreground underline underline-offset-4"
-                >
-                  Google AI Studio
-                </a>{" "}
-                می‌گیرد و اینجا ذخیره می‌کند. کلید فقط در مرورگر شما می‌ماند.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-2">
-              <Label htmlFor="api-key">API key</Label>
-              <Input
-                id="api-key"
-                type="text"
-                dir="ltr"
-                autoComplete="off"
-                autoCorrect="off"
-                spellCheck={false}
-                data-1p-ignore="true"
-                data-lpignore="true"
-                placeholder="Write Google API Key Here ..."
-                value={draftKey}
-                onChange={(event) => {
-                  setDraftKey(event.target.value)
-                  setKeyError("")
-                  setKeySuccess(false)
-                }}
-              />
-            </div>
-            {keyError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {keyError}
-              </p>
-            ) : null}
-            {keySuccess ? (
-              <p
-                role="status"
-                className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-              >
-                <CheckCircle2 className="size-4 shrink-0" />
-                API با موفقیت ثبت شد
-              </p>
-            ) : null}
-            <DialogFooter className="sm:justify-between">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  persistApiKey("")
-                  setDraftKey("")
-                  setKeySuccess(false)
-                  setKeyError("")
-                }}
-              >
-                پاک کردن
-              </Button>
-              {keySuccess ? (
-                <Button
-                  onClick={() => {
-                    setKeyDialogOpen(false)
-                    setKeyError("")
-                    setKeySuccess(false)
-                  }}
-                >
-                  تایید
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    if (!draftKey.trim()) {
-                      setKeyError("کلید API را وارد کنید.")
-                      return
-                    }
-                    persistApiKey(draftKey)
-                    setKeyError("")
-                    setKeySuccess(true)
-                  }}
-                >
-                  ذخیره
-                </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        <Dialog
-          open={customDialogOpen}
-          onOpenChange={(open) => {
-            setCustomDialogOpen(open)
-            if (!open) setCustomStyleError("")
-          }}
-        >
-          <DialogContent className="sm:max-w-md" dir="rtl">
-            <DialogHeader>
-              <DialogTitle>سبک سفارشی</DialogTitle>
-              <DialogDescription>
-                در حد ۱۰۰ نویسه بنویسید صدا چطور خوانده شود؛ مثلاً «آهسته و
-                صمیمی، مثل قصه‌گویی برای کودک».
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-2">
-              <Label htmlFor="custom-style">توضیح سبک</Label>
-              <Textarea
-                id="custom-style"
-                dir="rtl"
-                rows={4}
-                maxLength={MAX_CUSTOM_STYLE_CHARS}
-                value={draftCustomStyle}
-                onChange={(event) => {
-                  setDraftCustomStyle(
-                    event.target.value.slice(0, MAX_CUSTOM_STYLE_CHARS),
-                  )
-                  setCustomStyleError("")
-                }}
-                placeholder="مثلاً آرام، با مکث‌های کوتاه و لحن دوستانه"
-                className="min-h-24 resize-none text-sm leading-7"
-              />
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {(MAX_CUSTOM_STYLE_CHARS - draftCustomStyle.length).toLocaleString(
-                    "fa-IR",
-                  )}{" "}
-                  نویسه مانده
-                </span>
-              </div>
-              {customStyleError ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {customStyleError}
-                </p>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setCustomDialogOpen(false)}
-              >
-                انصراف
-              </Button>
-              <Button onClick={saveCustomStyle}>تایید</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </header>
+            <Button onClick={saveCustomStyle}>{t("custom.ok")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto lg:grid-cols-[16rem_minmax(0,1fr)_minmax(20rem,22rem)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:overflow-hidden">
         <ChatSidebar
@@ -689,10 +507,8 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
 
         <Card className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-card/90 shadow-sm max-lg:h-[min(28rem,70vh)]">
           <CardHeader className="border-b">
-            <CardTitle>متن برای خواندن</CardTitle>
-            <CardDescription>
-              مدل باید دقیقاً همین متن را بلند بخواند، نه ترجمه کند.
-            </CardDescription>
+            <CardTitle>{t("editor.title")}</CardTitle>
+            <CardDescription>{t("editor.description")}</CardDescription>
           </CardHeader>
           <CardContent className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3 overflow-hidden pt-4">
             <Textarea
@@ -700,9 +516,9 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               onChange={(event) =>
                 setText(event.target.value.slice(0, MAX_TEXT_CHARS))
               }
-              dir="rtl"
+              dir={dir}
               disabled={isLoading}
-              placeholder="متن فارسی را اینجا بنویسید..."
+              placeholder={t("editor.placeholder")}
               className={cn(
                 "h-full min-h-0 resize-none overflow-y-auto [field-sizing:fixed] text-base leading-8 md:text-lg",
                 isSampleText && "text-neutral-500",
@@ -710,8 +526,11 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
             />
             <div className="grid shrink-0 gap-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>برچسب‌ها را انگلیسی بگذارید: [excited] [very slow]</span>
-                <span>{remaining.toLocaleString("fa-IR")} نویسه مانده</span>
+                <span>{t("editor.tagsHint")}</span>
+                <span>
+                  {remaining.toLocaleString(locale === "en" ? "en-US" : "fa-IR")}{" "}
+                  {t("editor.charsLeft")}
+                </span>
               </div>
               {status === "error" && !timeoutOpen ? (
                 <p
@@ -725,7 +544,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                 <div className="space-y-3 rounded-xl border bg-muted/40 p-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium text-foreground">
-                      در حال تولید فایل صوتی
+                      {t("progress.title")}
                     </span>
                     <span className="tabular-nums text-muted-foreground">
                       {formatPercent(generation.percent)}
@@ -752,7 +571,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     onClick={() => void retryFresh()}
                   >
                     <RotateCcw data-icon="inline-start" />
-                    تلاش مجدد
+                    {t("progress.retry")}
                   </Button>
                 </div>
               ) : (
@@ -764,7 +583,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     disabled={!canSpeak}
                   >
                     <Volume2 data-icon="inline-start" />
-                    تولید فایل صوتی
+                    {t("speak.generate")}
                   </Button>
                   <Button
                     type="button"
@@ -773,7 +592,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     onClick={() => void retryFresh()}
                   >
                     <RotateCcw data-icon="inline-start" />
-                    تلاش مجدد
+                    {t("progress.retry")}
                   </Button>
                 </div>
               )}
@@ -785,24 +604,18 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <CardContent className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
               <div className="grid gap-2">
-                <Label className="text-base">صدا</Label>
+                <Label className="text-base">{t("voice.label")}</Label>
                 <VoiceTable
                   value={voice}
                   disabled={isLoading}
                   onChange={setVoice}
                   apiKey={apiKey}
-                  hasServerKey={hasServerKey}
-                  onNeedKey={() => {
-                    setDraftKey(apiKey)
-                    setKeyError("")
-                    setKeySuccess(false)
-                    setKeyDialogOpen(true)
-                  }}
+                  onNeedKey={onNeedKey}
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label className="text-base">سبک خواندن</Label>
+                <Label className="text-base">{t("style.label")}</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {STYLES.map((item) => (
                     <button
@@ -816,11 +629,13 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                           : "border-border bg-background hover:bg-muted",
                       )}
                     >
-                      <div className="text-sm font-medium">{item.label}</div>
+                      <div className="text-sm font-medium">
+                        {t(`style.${item.id}.label` as MessageKey)}
+                      </div>
                       <div className="line-clamp-2 text-xs text-muted-foreground">
                         {item.id === "custom" && customStyle
                           ? customStyle
-                          : item.hint}
+                          : t(`style.${item.id}.hint` as MessageKey)}
                       </div>
                     </button>
                   ))}
@@ -829,13 +644,13 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
 
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-base">پخش</Label>
+                  <Label className="text-base">{t("player.label")}</Label>
                   <span className="text-xs text-muted-foreground">
                     {isLoading
-                      ? `تولید فایل صوتی · ${formatPercent(generation.percent)}`
+                      ? `${t("player.loading")} · ${formatPercent(generation.percent)}`
                       : audioUrl
-                        ? "آمادهٔ پخش و دانلود."
-                        : "هنوز صدایی ساخته نشده."}
+                        ? t("player.ready")
+                        : t("player.empty")}
                   </span>
                 </div>
                 <audio
@@ -889,7 +704,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     disabled={!canSeek}
                     onClick={() => skip(-10)}
                   >
-                    ۱۰ ثانیه عقب
+                    {t("player.back")}
                   </Button>
                   <Button
                     size="sm"
@@ -897,7 +712,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     className="h-8 min-w-0 px-1.5"
                     onClick={togglePlayback}
                     disabled={!audioUrl || isLoading}
-                    aria-label={isPlaying ? "توقف" : "پخش"}
+                    aria-label={isPlaying ? t("player.pause") : t("player.play")}
                   >
                     {isPlaying ? <Pause /> : <Play />}
                   </Button>
@@ -908,7 +723,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     disabled={!canSeek}
                     onClick={() => skip(10)}
                   >
-                    ۱۰ ثانیه جلو
+                    {t("player.forward")}
                   </Button>
                   <Button
                     variant="outline"
@@ -924,7 +739,7 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
                     }}
                   >
                     <Download data-icon="inline-start" />
-                    دانلود
+                    {t("player.download")}
                   </Button>
                 </div>
               </div>
@@ -940,14 +755,12 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
           if (open) setTimeoutOpen(true)
         }}
       >
-        <DialogContent className="sm:max-w-md" dir="rtl" showCloseButton={false}>
+        <DialogContent className="sm:max-w-md" dir={dir} showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>خطا در تولید فایل</DialogTitle>
+            <DialogTitle>{t("timeout.title")}</DialogTitle>
             <DialogDescription className="space-y-2 text-start leading-7">
-              <span className="block">در تولید فایل مشکلی صورت گرفته.</span>
-              <span className="block">
-                لطفا دکمه‌ی تلاش مجدد را بزنید تا صفحه تازه شود.
-              </span>
+              <span className="block">{t("timeout.body1")}</span>
+              <span className="block">{t("timeout.body2")}</span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -956,11 +769,11 @@ export function SpeechStudio({ hasServerKey }: SpeechStudioProps) {
               onClick={() => void retryFresh()}
             >
               <RotateCcw data-icon="inline-start" />
-              تلاش مجدد
+              {t("progress.retry")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

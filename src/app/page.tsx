@@ -1,6 +1,5 @@
-import { SpeechStudio } from "@/components/speech-studio"
+import { PersianStudio } from "@/components/persian-studio"
 
 export default function Home() {
-  const hasServerKey = Boolean(process.env.GEMINI_API_KEY?.trim())
-  return <SpeechStudio hasServerKey={hasServerKey} />
+  return <PersianStudio />
 }

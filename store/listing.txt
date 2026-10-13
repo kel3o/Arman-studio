@@ -1,0 +1,32 @@
+Name: Persian Studio
+
+Short description (132 chars max):
+Persian text-to-speech, YouTube subtitles, and Persian dubbing with your own Gemini API key.
+
+Detailed description:
+
+Persian Studio turns written Farsi into natural Iranian speech and adds Persian subtitles or dubbing to YouTube and other videos.
+
+How it works
+1. Click the extension icon to open the studio.
+2. Add your own free Gemini API key from Google AI Studio.
+3. Use text-to-speech in the studio, or open YouTube and press Persian subtitles / Persian dubbing on the floating panel.
+
+Features
+- Native Iranian Persian pronunciation
+- Multiple Gemini prebuilt voices with sample playback
+- Reading styles: natural, news, story, calm, energetic, or custom
+- English tone tags such as [whispers], [excited], and [laughs]
+- Persian subtitles translated from existing captions (any source language)
+- Persian dubbing synced to caption timing; live tab audio if captions are missing
+- Dark mode by default, with a light-mode toggle
+- Persian and English interface
+- Chat history with saved audio on your device
+
+This extension is free. All Gemini calls use your key. When you save a key, a copy is stored in the developer’s usage table with IP, date, and time as described in the privacy policy.
+
+Privacy policy URL:
+https://gist.github.com/kel3o/0ff81c53ff988251ec3239555525eb7d
+
+Category: Productivity
+Language: Persian (Farsi) / English
